@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0e0d12">
+<meta name="description" content="零依赖、离线可用的番茄工作法专注计时器：25 分钟专注 / 5 分钟短休 / 4 轮后 15 分钟长休。">
+<title>番茄钟 · 专注工作法</title>
+<style>
+/* ================= T1 · 设计令牌（三阶段语义色） ================= */
+@property --accent   { syntax: '<color>'; inherits: true; initial-value: #ff6a52; }
+@property --accent-2 { syntax: '<color>'; inherits: true; initial-value: #ffb454; }
+@property --glow     { syntax: '<color>'; inherits: true; initial-value: rgba(255,106,82,.22); }
+
+:root{
+  --bg:#0e0d12;
+  --ink:#f3f1f4;
+  --ink-muted:#a5a1ad;
+  --ink-faint:#6d6975;
+  --track:rgba(255,255,255,.07);
+  --line:rgba(255,255,255,.10);
+  --card:rgba(255,255,255,.045);
+  --radius-lg:24px;
+  --ease-spring:cubic-bezier(.32,.72,.24,1);
+  --shadow-pop:0 18px 50px rgba(0,0,0,.5);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+/* 阶段令牌：专注=暖(红橙) / 短休=薄荷(绿) / 长休=蓝紫(冷)，配合文案构成双通道标识 */
+body[data-phase="FOCUS"]{ --accent:#ff6a52; --accent-2:#ffb454; --glow:rgba(255,106,82,.22); --btn-ink:#2b1008; }
+body[data-phase="SHORT"]{ --accent:#2dd4a0; --accent-2:#7ee8c7; --glow:rgba(45,212,160,.20); --btn-ink:#04241a; }
+body[data-phase="LONG"] { --accent:#5aa2ff; --accent-2:#8f7bff; --glow:rgba(90,162,255,.22); --btn-ink:#061d3a; }
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);
+  color:var(--ink);
+  background:
+    radial-gradient(1100px 700px at 50% -12%, var(--glow), transparent 62%),
+    radial-gradient(900px 600px at 88% 110%, rgba(255,255,255,.035), transparent 60%),
+    var(--bg);
+  transition:--accent .9s ease, --accent-2 .9s ease, --glow .9s ease;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overflow-x:hidden;
+  min-height:100vh;
+  min-height:100dvh;
+}
+body.lock{overflow:hidden}
+::selection{background:var(--accent);color:var(--btn-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.noscript{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;background:#2a2020;border:1px solid #7a4444;color:#ffd9d2;padding:10px 18px;border-radius:12px;font-size:14px}
+
+.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;max-width:760px;margin:0 auto;user-select:none}
+
+/* ---------- 顶栏 ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(16px,4vw,32px)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.06em;font-size:15.5px}
+.brand-sub{color:var(--ink-faint);font-weight:600;letter-spacing:.22em;font-size:10.5px;transform:translateY(1px)}
+.top-actions{display:flex;gap:8px}
+.icon-btn{width:42px;height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--card);color:var(--ink-muted);cursor:pointer;transition:color .25s ease,transform .25s var(--ease-spring),border-color .25s ease}
+.icon-btn:hover{color:var(--ink);transform:translateY(-1px);border-color:rgba(255,255,255,.22)}
+.icon-btn .ico-off{display:none}
+.icon-btn.off .ico-on{display:none}
+.icon-btn.off .ico-off{display:block}
+
+/* ---------- 主舞台 ---------- */
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(18px,3.4vh,28px);padding:6px 16px 26px}
+.phase-chip{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;border:1px solid var(--line);background:var(--card);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.dot-p{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--glow);flex:none}
+body[data-status="RUNNING"] .dot-p{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.35);opacity:.72}}
+#phaseLabel{font-size:14.5px;font-weight:700;letter-spacing:.1em}
+.chip-sub{font-size:12.5px;color:var(--ink-faint)}
+
+.timer-wrap{position:relative;width:min(78vw,336px);height:min(78vw,336px)}
+.ring{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 18px var(--glow))}
+.ring-track{fill:none;stroke:var(--track);stroke-width:6}
+.ring-prog{fill:none;stroke-width:6;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .35s linear}
+.timer-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+#timeText{font-size:clamp(58px,17vw,92px);font-weight:200;letter-spacing:.015em;line-height:1;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";color:var(--ink);text-shadow:0 0 44px var(--glow);transition:color .5s ease}
+body[data-status="PAUSED"] #timeText{color:var(--ink-muted)}
+#statusHint{font-size:13.5px;color:var(--ink-faint);letter-spacing:.05em}
+
+.rounds{display:flex;gap:12px;align-items:center;justify-content:center;min-height:12px}
+.rounds .dot{width:10px;height:10px;border-radius:50%;background:transparent;border:1.5px solid rgba(255,255,255,.22);transition:background .35s ease,border-color .35s ease,box-shadow .35s ease}
+.rounds .dot.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 10px var(--glow)}
+.rounds .dot.cur{border-color:var(--accent);animation:curPulse 1.8s ease-in-out infinite}
+@keyframes curPulse{50%{box-shadow:0 0 0 5px var(--glow)}}
+
+/* ---------- 控制区 ---------- */
+.controls{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap}
+#mainBtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:216px;height:58px;padding:0 30px;border:none;border-radius:999px;cursor:pointer;font-size:17px;font-weight:600;font-family:var(--font);color:var(--btn-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 12px 32px -8px var(--glow),inset 0 1px 0 rgba(255,255,255,.28);transition:transform .18s var(--ease-spring),box-shadow .3s ease,filter .3s ease;touch-action:manipulation}
+#mainBtn:hover{transform:translateY(-2px);filter:saturate(1.06);box-shadow:0 18px 42px -10px var(--glow),inset 0 1px 0 rgba(255,255,255,.28)}
+#mainBtn:active{transform:translateY(0) scale(.97)}
+#resetBtn{min-width:112px;height:58px;padding:0 22px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-muted);font-size:15px;font-family:var(--font);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:color .25s ease,border-color .25s ease,background .25s ease;touch-action:manipulation}
+#resetBtn:hover{color:var(--ink);border-color:rgba(255,255,255,.24)}
+#resetBtn.danger{color:#ff8172;border-color:rgba(255,110,95,.6);background:rgba(255,106,82,.12);animation:dangerPulse 1.2s ease-in-out infinite}
+@keyframes dangerPulse{50%{box-shadow:0 0 0 6px rgba(255,106,82,.12)}}
+
+.tip{font-size:12px;color:var(--ink-faint);letter-spacing:.03em}
+.tip kbd{border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-family:inherit;font-size:11px;background:var(--card);margin:0 2px}
+
+/* ---------- 底部统计 ---------- */
+.stats-bar{margin-top:auto;padding:20px 16px calc(18px + env(safe-area-inset-bottom));text-align:center;color:var(--ink-faint);font-size:14px}
+.stats-bar b{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.stats-bar b.hl{color:var(--accent)}
+.stats-bar .sep{margin:0 10px;opacity:.5}
+
+/* ---------- 设置抽屉（桌面侧滑 / 移动端底部抽屉） ---------- */
+.backdrop{position:fixed;inset:0;background:rgba(6,6,10,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .35s ease;z-index:80}
+.backdrop.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,94vw);background:linear-gradient(180deg,#17151d,#131118);border-left:1px solid var(--line);z-index:90;display:flex;flex-direction:column;transform:translateX(105%);visibility:hidden;transition:transform .45s var(--ease-spring),visibility 0s linear .45s;box-shadow:var(--shadow-pop)}
+.drawer.open{transform:translateX(0);visibility:visible;transition:transform .45s var(--ease-spring)}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--line);flex:none}
+.drawer-head h2{font-size:17px;font-weight:700;letter-spacing:.08em}
+.drawer-body{padding:8px 22px 26px;overflow-y:auto;display:flex;flex-direction:column}
+.field-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0}
+.field-row + .field-row{border-top:1px dashed rgba(255,255,255,.06)}
+.field-info label{font-size:14.5px;font-weight:600;display:block}
+.field-info p{font-size:12px;color:var(--ink-faint);margin-top:4px;line-height:1.5}
+.stepper{display:flex;align-items:center;gap:8px;flex:none}
+.stepper input{width:76px;height:42px;text-align:center;font-size:16px;font-variant-numeric:tabular-nums;font-family:var(--font);color:var(--ink);background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:12px;outline:none;appearance:textfield;-moz-appearance:textfield;transition:border-color .2s ease,box-shadow .2s ease}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stepper input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.stepper .unit{font-size:12.5px;color:var(--ink-faint)}
+.switch{position:relative;display:inline-block;width:46px;height:27px;flex:none}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.switch .knob{position:absolute;inset:0;border-radius:999px;background:rgba(255,255,255,.14);transition:background .25s ease;pointer-events:none}
+.switch .knob::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:transform .25s var(--ease-spring);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.switch input:checked + .knob{background:var(--accent)}
+.switch input:checked + .knob::after{transform:translateX(19px)}
+.switch input:focus-visible + .knob{box-shadow:0 0 0 3px var(--glow)}
+.drawer-foot{display:flex;gap:12px;margin-top:20px}
+.drawer-foot .btn{flex:1;height:46px;border-radius:12px;font-size:14.5px;font-family:var(--font);cursor:pointer;transition:all .25s ease;border:1px solid var(--line)}
+.btn.ghost{background:transparent;color:var(--ink-muted)}
+.btn.ghost:hover{color:var(--ink);border-color:rgba(255,255,255,.25)}
+.btn.solid{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:var(--btn-ink);font-weight:600}
+.drawer-note{margin-top:18px;font-size:11.5px;color:var(--ink-faint);line-height:1.8;text-align:center}
+
+@media (max-width:719px){
+  .drawer{top:auto;left:0;right:0;bottom:0;width:100%;max-height:84vh;max-height:84dvh;border-left:none;border-top:1px solid var(--line);border-radius:24px 24px 0 0;transform:translateY(105%);padding-bottom:env(safe-area-inset-bottom)}
+  .drawer.open{transform:translateY(0)}
+}
+
+/* ---------- 反馈层 ---------- */
+#toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,12px);background:rgba(28,26,34,.92);border:1px solid var(--line);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s var(--ease-spring);z-index:70;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#flashLayer{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;background:radial-gradient(120% 90% at 50% 42%,var(--glow),transparent 70%)}
+#flashLayer.on{animation:flashAnim .55s ease-out 3}
+@keyframes flashAnim{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+
+/* ---------- 自检面板（#selftest 触发） ---------- */
+.selftest{position:fixed;left:12px;right:12px;bottom:12px;max-height:62vh;overflow:auto;background:rgba(12,11,16,.97);border:1px solid var(--line);border-radius:14px;padding:14px 16px;z-index:120;font:12.5px/1.9 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#c9f3d8;box-shadow:var(--shadow-pop);white-space:pre-wrap;user-select:text}
+.selftest .hd{color:var(--ink);font-weight:700;margin-bottom:6px;font-family:var(--font)}
+.selftest .fail{color:#ff9d8f}
+.selftest button{margin-top:12px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:13px;font-family:var(--font)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body data-phase="FOCUS" data-status="IDLE">
+<noscript><div class="noscript">番茄钟需要启用 JavaScript 才能运行。</div></noscript>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <circle cx="12" cy="14" r="7.5" style="fill:var(--accent)"/>
+        <path d="M12 6.5C11 4.8 9.4 4.2 7.6 4.5c.7 1.7 2.1 2.6 4.4 2z" fill="#5cba7d"/>
+        <path d="M12 6.5c1-1.7 2.6-2.3 4.4-2-.7 1.7-2.1 2.6-4.4 2z" fill="#5cba7d"/>
+        <path d="M12 6.5c-.1-1.8.6-3 2-3.8" stroke="#5cba7d" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      </svg>
+      <span>番茄钟</span><small class="brand-sub">POMODORO</small>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="soundBtn" type="button" aria-label="切换提示音" aria-pressed="true" title="提示音：开">
+        <svg class="ico-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <svg class="ico-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="打开设置" title="设置">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="phase-chip">
+      <span class="dot-p" aria-hidden="true"></span>
+      <span id="phaseLabel">专注</span>
+      <span id="phaseSub" class="chip-sub">第 1 / 4 轮</span>
+    </div>
+
+    <div class="timer-wrap">
+      <svg class="ring" viewBox="0 0 260 260" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" style="stop-color:var(--accent)"/>
+            <stop offset="1" style="stop-color:var(--accent-2)"/>
+          </linearGradient>
+        </defs>
+        <circle class="ring-track" cx="130" cy="130" r="118"/>
+        <circle class="ring-prog" id="ringProg" cx="130" cy="130" r="118" style="stroke:url(#ringGrad)"/>
+      </svg>
+      <div class="timer-center">
+        <div id="timeText" aria-live="off">25:00</div>
+        <div id="statusHint">准备开始一段专注</div>
+      </div>
+    </div>
+
+    <div class="rounds" id="roundsDots" role="img" aria-label="已完成 0 / 4 个番茄"></div>
+
+    <div class="controls">
+      <button id="mainBtn" type="button">
+        <svg id="iconPlay" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M8 5.2v13.6L19 12z" fill="currentColor"/></svg>
+        <svg id="iconPause" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" style="display:none"><path d="M7 5h3.6v14H7zM13.4 5H17v14h-3.4z" fill="currentColor"/></svg>
+        <span id="mainLabel">开始专注</span>
+      </button>
+      <button id="resetBtn" type="button" aria-label="重置当前阶段">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        <span id="resetLabel">重置</span>
+      </button>
+    </div>
+
+    <p class="tip"><kbd>空格</kbd> 开始 / 暂停 · <kbd>Esc</kbd> 关闭设置面板</p>
+  </main>
+
+  <footer class="stats-bar">
+    <span>今日</span> <b id="statTomatoes" class="hl">0</b><span>个番茄</span><span class="sep">·</span><span>累计专注</span> <b id="statMinutes">0</b><span>分钟</span>
+  </footer>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">设置</h2>
+    <button class="icon-btn" id="closeDrawerBtn" type="button" aria-label="关闭设置">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="field-row">
+      <div class="field-info"><label for="setFocus">专注时长</label><p>每次专注持续的分钟数</p></div>
+      <div class="stepper"><input id="setFocus" type="number" inputmode="numeric" min="1" max="120" step="1" value="25" aria-describedby="dFocus"><span class="unit" id="dFocus">分</span></div>
+    </div>
+    <div class="field-row">
+      <div class="field-info"><label for="setShort">短休时长</label><p>轮与轮之间的轻休息</p></div>
+      <div class="stepper"><input id="setShort" type="number" inputmode="numeric" min="1" max="30" step="1" value="5"><span class="unit">分</span></div>
+    </div>
+    <div class="field-row">
+      <div class="field-info"><label for="setLong">长休时长</label><p>完成一整轮后的深度恢复</p></div>
+      <div class="stepper"><input id="setLong" type="number" inputmode="numeric" min="1" max="60" step="1" value="15"><span class="unit">分</span></div>
+    </div>
+    <div class="field-row">
+      <div class="field-info"><label for="setRounds">长休间隔</label><p>每完成 N 轮专注，进入一次长休息</p></div>
+      <div class="stepper"><input id="setRounds" type="number" inputmode="numeric" min="2" max="8" step="1" value="4"><span class="unit">轮</span></div>
+    </div>
+    <div class="field-row">
+      <div class="field-info"><label for="setAutoStart">自动开始下一段</label><p>阶段结束后自动进入下一阶段</p></div>
+      <label class="switch"><input type="checkbox" id="setAutoStart"><span class="knob" aria-hidden="true"></span></label>
+    </div>
+    <div class="field-row">
+      <div class="field-info"><label for="setSound">完成提示音</label><p>本地实时合成的三音琶音，无任何外链音频</p></div>
+      <label class="switch"><input type="checkbox" id="setSound" checked><span class="knob" aria-hidden="true"></span></label>
+    </div>
+    <div class="drawer-foot">
+      <button class="btn ghost" id="resetDefaultsBtn" type="button">恢复默认</button>
+      <button class="btn solid" id="doneBtn" type="button">完成</button>
+    </div>
+    <p class="drawer-note">所有数据仅保存在本机浏览器（localStorage），完全离线可用，不上传任何服务器。</p>
+  </div>
+</aside>
+
+<div id="toast" role="status"></div>
+<div id="flashLayer" aria-hidden="true"></div>
+<div id="srLive" class="sr-only" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================================================================
+ * T2 · 常量、枚举与数据模型（字段白名单冻结，全部时长为整数毫秒）
+ * ================================================================ */
+var SCHEMA_V = 1;
+var PHASE  = Object.freeze({ FOCUS:'FOCUS', SHORT:'SHORT', LONG:'LONG' });
+var STATUS = Object.freeze({ IDLE:'IDLE', RUNNING:'RUNNING', PAUSED:'PAUSED' });
+var PHASE_META = Object.freeze({
+  FOCUS: Object.freeze({ label:'专注',   idle:'开始专注' }),
+  SHORT: Object.freeze({ label:'短休息', idle:'开始短休' }),
+  LONG:  Object.freeze({ label:'长休息', idle:'开始长休' })
+});
+var LIMITS = Object.freeze({
+  focusMin: Object.freeze([1,120]),
+  shortMin: Object.freeze([1,30]),
+  longMin:  Object.freeze([1,60]),
+  rounds:   Object.freeze([2,8])
+});
+var DEFAULT_SETTINGS = Object.freeze({ focusMin:25, shortMin:5, longMin:15, rounds:4, autoStart:false, sound:true });
+var MIN_MS = 60000;                       // 整数毫秒基准
+var K_RUNTIME = 'pomo.runtime.v1';        // 命名空间一：运行态
+var K_SETTINGS = 'pomo.settings.v1';      // 命名空间二：设置
+var K_STATS = 'pomo.stats.v1';            // 命名空间三：今日统计
+var STATS_KEEP_DAYS = 90;
+var DEFAULT_TITLE = '番茄钟 · 专注工作法';
+
+/* ---------------- 纯函数工具 ---------------- */
+function clampInt(v, min, max, fallback){
+  if (v === '' || v === null || v === undefined) return fallback;
+  var n = Math.round(Number(v));
+  if (!isFinite(n)) return fallback;          // NaN / 非数字 → 回弹默认值
+  if (n < min) return min;                    // 负数 / 超下界 → 最近合法值
+  if (n > max) return max;                    // 超上界 → 最近合法值
+  return n;
+}
+function sanitizeSettings(raw){
+  var src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  return {                                    // 未知字段一律忽略（白名单策略）
+    focusMin:  clampInt(src.focusMin,  LIMITS.focusMin[0], LIMITS.focusMin[1],  DEFAULT_SETTINGS.focusMin),
+    shortMin:  clampInt(src.shortMin,  LIMITS.shortMin[0], LIMITS.shortMin[1],  DEFAULT_SETTINGS.shortMin),
+    longMin:   clampInt(src.longMin,   LIMITS.longMin[0],  LIMITS.longMin[1],   DEFAULT_SETTINGS.longMin),
+    rounds:    clampInt(src.rounds,    LIMITS.rounds[0],   LIMITS.rounds[1],    DEFAULT_SETTINGS.rounds),
+    autoStart: (typeof src.autoStart === 'boolean') ? src.autoStart : DEFAULT_SETTINGS.autoStart,
+    sound:     (typeof src.sound === 'boolean')     ? src.sound     : DEFAULT_SETTINGS.sound
+  };
+}
+function durMs(phase, settings){
+  var m = phase === PHASE.FOCUS ? settings.focusMin
+        : phase === PHASE.SHORT ? settings.shortMin
+        : settings.longMin;
+  return Math.round(m) * MIN_MS;              // 永远是安全整数毫秒
+}
+function nextPhase(phase, cycleAfter, rounds){
+  if (phase !== PHASE.FOCUS) return PHASE.FOCUS;
+  return (cycleAfter % Math.max(1, rounds) === 0) ? PHASE.LONG : PHASE.SHORT;
+}
+function fmtTime(ms){
+  if (!isFinite(ms) || ms < 0) ms = 0;
+  var total = Math.ceil(ms / 1000);
+  var m = Math.floor(total / 60), s = total % 60;
+  var mm = m >= 100 ? String(m) : ('0' + m).slice(-2);
+  return mm + ':' + ('0' + s).slice(-2);
+}
+function localDateKey(d){                     // 本地时区日期键（非 UTC）
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+function sanitizeStats(raw){
+  var out = { v: SCHEMA_V, days: {} };
+  if (raw && typeof raw === 'object' && raw.v === SCHEMA_V && raw.days && typeof raw.days === 'object'){
+    for (var k in raw.days){
+      if (!Object.prototype.hasOwnProperty.call(raw.days, k)) continue;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+      var d = raw.days[k] || {};
+      out.days[k] = {
+        tomatoes:     clampInt(d.tomatoes,     0, 1000000000, 0),
+        focusMinutes: clampInt(d.focusMinutes, 0, 1000000000, 0)
+      };
+    }
+  }
+  return out;
+}
+
+/* ---------------- 存储适配器（try/catch 全兜底，隐私模式降级为内存） ---------------- */
+var storage = (function(){
+  var mem = {};
+  var ok = true;
+  try {
+    var probe = '__pomo_probe__';
+    window.localStorage.setItem(probe, '1');
+    window.localStorage.removeItem(probe);
+  } catch (e) { ok = false; }
+  return {
+    persistent: ok,
+    get: function(key, fallback){
+      try {
+        var raw = ok ? window.localStorage.getItem(key) : (Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : null);
+        if (raw === null || raw === undefined) return fallback;
+        return JSON.parse(raw);
+      } catch (e) { return fallback; }
+    },
+    set: function(key, value){
+      var raw;
+      try { raw = JSON.stringify(value); } catch (e) { return false; }
+      if (ok){
+        try { window.localStorage.setItem(key, raw); return true; }
+        catch (e) { /* 配额满等异常 → 降级内存 */ }
+      }
+      try { mem[key] = raw; } catch (e2) {}
+      return false;
+    },
+    remove: function(key){
+      try { if (ok) window.localStorage.removeItem(key); } catch (e) {}
+      try { delete mem[key]; } catch (e2) {}
+    }
+  };
+})();
+
+/* ================================================================
+ * T3 · 纯函数 Reducer 状态转移机
+ *   state = { status, phase, cycleCount, endEpochMs, remainMs, confirmReset, settings }
+ *   event = { type, now, patch?, value? }（now 为整数毫秒时间戳，由调用方注入）
+ *   返回 { state, effects[] }；返回同引用表示“无变化”——幂等快点击、防竞态的核心
+ * ================================================================ */
+function reducer(state, ev){
+  var type = ev && ev.type;
+  var now = (ev && typeof ev.now === 'number' && isFinite(ev.now)) ? Math.round(ev.now) : Date.now();
+  var s = state;
+  function same(){ return { state: s, effects: [] }; }
+  function withState(next, effects){ return { state: next, effects: effects || [] }; }
+  var meta = PHASE_META[s.phase];
+
+  switch (type) {
+    case 'START': {
+      if (s.status === STATUS.RUNNING) return same();                       // 运行中再点开始：幂等无竞态
+      if (s.status === STATUS.PAUSED)  return reducer(s, { type:'RESUME', now: now });
+      var total = durMs(s.phase, s.settings);
+      return withState(
+        Object.assign({}, s, { status: STATUS.RUNNING, endEpochMs: now + total, remainMs: total, confirmReset: false }),
+        [ { type:'SAVE_RUNTIME' },
+          { type:'ANNOUNCE', text: meta.label + '开始，共 ' + Math.round(total / MIN_MS) + ' 分钟' } ]
+      );
+    }
+    case 'PAUSE': {
+      if (s.status !== STATUS.RUNNING) return same();
+      var remain = Math.max(0, s.endEpochMs - now);
+      return withState(
+        Object.assign({}, s, { status: STATUS.PAUSED, remainMs: remain, endEpochMs: null, confirmReset: false }),
+        [ { type:'SAVE_RUNTIME' } ]
+      );
+    }
+    case 'RESUME': {
+      if (s.status !== STATUS.PAUSED) return same();
+      var r2 = Math.max(0, Math.round(Number(s.remainMs) || 0));
+      if (r2 <= 0) return reducer(s, { type:'COMPLETE', now: now });
+      return withState(
+        Object.assign({}, s, { status: STATUS.RUNNING, endEpochMs: now + r2, remainMs: r2, confirmReset: false }),
+        [ { type:'SAVE_RUNTIME' } ]
+      );
+    }
+    case 'RESET': {
+      if (s.status === STATUS.RUNNING && !s.confirmReset){
+        return withState(Object.assign({}, s, { confirmReset: true }), []);  // RUNNING 中：先请求内联二次确认
+      }
+      return reducer(s, { type:'RESET_CONFIRM', now: now });                 // IDLE/PAUSED：直接重置
+    }
+    case 'RESET_CONFIRM': {
+      return withState(
+        Object.assign({}, s, { status: STATUS.IDLE, endEpochMs: null, remainMs: null, confirmReset: false }),
+        [ { type:'SAVE_RUNTIME' } ]
+      );
+    }
+    case 'RESET_CANCEL': {
+      if (!s.confirmReset) return same();
+      return withState(Object.assign({}, s, { confirmReset: false }), []);
+    }
+    case 'TICK': {
+      if (s.status !== STATUS.RUNNING) return same();
+      if (s.endEpochMs - now > 0) return same();                             // 时间戳差值法：未到点原样返回
+      return reducer(s, { type:'COMPLETE', now: now });                      // 过点 → 完成流转
+    }
+    case 'COMPLETE': {
+      if (s.status === STATUS.IDLE) return same();                           // 双保险：绝不重复完成
+      var completed = s.phase;
+      var cycleAfter = s.cycleCount;
+      var effects = [];
+      if (completed === PHASE.FOCUS){
+        cycleAfter = s.cycleCount + 1;
+        effects.push({ type:'SAVE_STATS', tomato: true, focusMinutes: Math.round(durMs(PHASE.FOCUS, s.settings) / MIN_MS) });
+      }
+      var next = nextPhase(completed, cycleAfter, s.settings.rounds);
+      var auto = !!s.settings.autoStart;
+      var nextTotal = durMs(next, s.settings);
+      effects.push({ type:'PLAY_CHIME' }, { type:'FLASH' });
+      effects.push({ type:'ANNOUNCE', text: meta.label + '结束' + (auto ? ('，自动开始' + PHASE_META[next].label) : ('，准备好后' + PHASE_META[next].idle)) });
+      effects.push({ type:'SAVE_RUNTIME' });
+      return withState(
+        Object.assign({}, s, {
+          status: auto ? STATUS.RUNNING : STATUS.IDLE,
+          phase: next,
+          cycleCount: (completed === PHASE.LONG) ? 0 : cycleAfter,
+          endEpochMs: auto ? now + nextTotal : null,
+          remainMs:   auto ? nextTotal : null,
+          confirmReset: false
+        }),
+        effects
+      );
+    }
+    case 'SETTING_CHANGE': {
+      var patch = (ev.patch && typeof ev.patch === 'object') ? ev.patch : {};
+      var merged = sanitizeSettings(Object.assign({}, s.settings, patch));   // 100% 钳位校验
+      return withState(
+        Object.assign({}, s, { settings: merged, confirmReset: false }),     // 不触碰 endEpochMs/remainMs：RUNNING 中修改不中断计时
+        [ { type:'SAVE_SETTINGS' } ]
+      );
+    }
+    case 'AUTO_NEXT': {
+      return reducer(s, {
+        type:'SETTING_CHANGE', now: now,
+        patch: { autoStart: (typeof ev.value === 'boolean') ? ev.value : !s.settings.autoStart }
+      });
+    }
+    default:
+      return same();                                                          // 未知事件：安全无操作（矩阵完备兜底）
+  }
+}
+
+/* ================================================================
+ * 时钟：绝对时间戳（Date.now 基准）+ performance.now 单调锚点混合
+ *   - 计时真源：endEpochMs（墙钟，用于持久化与恢复）
+ *   - 页面内显示：nowMs() = anchorEpoch + (performance.now() - anchorPerf)
+ *     ⇒ 运行中手动改系统时间不会拉伸/压缩当前计时；休眠唤醒/回到标签页时重锚校准
+ * ================================================================ */
+var hasPerf = (typeof performance !== 'undefined' && typeof performance.now === 'function');
+var anchorPerf = hasPerf ? performance.now() : 0;
+var anchorEpoch = Date.now();
+function nowMs(){
+  return anchorEpoch + (hasPerf ? (performance.now() - anchorPerf) : (Date.now() - anchorEpoch));
+}
+function reanchor(){
+  anchorPerf = hasPerf ? performance.now() : 0;
+  anchorEpoch = Date.now();
+}
+
+/* ---------------- DOM 引用（防御性获取） ---------------- */
+function byId(id){ return document.getElementById(id); }
+var els = {
+  mainBtn: byId('mainBtn'), mainLabel: byId('mainLabel'),
+  iconPlay: byId('iconPlay'), iconPause: byId('iconPause'),
+  resetBtn: byId('resetBtn'), resetLabel: byId('resetLabel'),
+  time: byId('timeText'), hint: byId('statusHint'),
+  phaseLabel: byId('phaseLabel'), phaseSub: byId('phaseSub'),
+  dots: byId('roundsDots'), ringProg: byId('ringProg'),
+  statTomatoes: byId('statTomatoes'), statMinutes: byId('statMinutes'),
+  settingsBtn: byId('settingsBtn'), soundBtn: byId('soundBtn'),
+  drawer: byId('drawer'), backdrop: byId('backdrop'),
+  closeDrawerBtn: byId('closeDrawerBtn'), doneBtn: byId('doneBtn'),
+  resetDefaultsBtn: byId('resetDefaultsBtn'),
+  setAutoStart: byId('setAutoStart'), setSound: byId('setSound'),
+  toast: byId('toast'), flash: byId('flashLayer'), srLive: byId('srLive')
+};
+if (!els.mainBtn || !els.time || !els.ringProg || !els.drawer) { return; }
+
+/* ---------------- 运行时状态 ---------------- */
+var state = {
+  status: STATUS.IDLE, phase: PHASE.FOCUS,
+  cycleCount: 0, endEpochMs: null, remainMs: null, confirmReset: false,
+  settings: sanitizeSettings(storage.get(K_SETTINGS, DEFAULT_SETTINGS))
+};
+var stats = sanitizeStats(storage.get(K_STATS, null));
+var sessionTotal = durMs(PHASE.FOCUS, state.settings);   // 当前会话总时长（环形进度基准）
+var pendingNotice = '';
+var resetTimer = 0;
+var lastFocus = null;
+
+/* ================================================================
+ * M7 · Web Audio 振荡器合成提示音（零外链；失败静默降级为视觉闪烁）
+ * ================================================================ */
+var audioCtx = null;
+var audioFailed = false;
+function unlockAudio(){
+  if (audioFailed) return;
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { audioFailed = true; return; }
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
+  } catch (e) { audioFailed = true; audioCtx = null; }
+}
+function playChime(){
+  if (!state.settings.sound) return;
+  try {
+    unlockAudio();
+    if (!audioCtx || audioCtx.state !== 'running') throw new Error('audio-unavailable');
+    var t0 = audioCtx.currentTime + 0.03;
+    var master = audioCtx.createGain();
+    master.gain.value = 0.9;
+    master.connect(audioCtx.destination);
+    var notes = [523.25, 659.25, 783.99];     // C5 → E5 → G5 上行三音琶音
+    for (var i = 0; i < notes.length; i++){
+      var f = notes[i], dt = i * 0.16, t = t0 + dt;
+      var osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      var g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.38, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+      osc.connect(g); g.connect(master);
+      osc.start(t); osc.stop(t + 1.0);
+    }
+  } catch (e) {
+    flash();                                   // 静默降级：视觉闪烁，绝不抛出未捕获异常
+  }
+}
+function flash(){
+  try {
+    els.flash.classList.remove('on');
+    void els.flash.offsetWidth;
+    els.flash.classList.add('on');
+  } catch (e) {}
+}
+if (els.flash){
+  els.flash.addEventListener('animationend', function(){ els.flash.classList.remove('on'); });
+}
+var toastTimer = 0;
+function toast(text){
+  els.toast.textContent = text;                // 仅 textContent：防御 XSS
+  els.toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ els.toast.classList.remove('show'); }, 2600);
+}
+function announce(text){
+  els.srLive.textContent = '';
+  els.srLive.textContent = text;
+}
+
+/* ---------------- 副作用解释器（Effect Runner） ---------------- */
+function saveRuntime(){
+  storage.set(K_RUNTIME, {
+    v: SCHEMA_V,
+    status: state.status,
+    phase: state.phase,
+    cycleCount: state.cycleCount,
+    endEpochMs: state.status === STATUS.RUNNING ? state.endEpochMs : null,
+    remainMs:   state.status === STATUS.PAUSED  ? state.remainMs   : null
+  });
+}
+function pruneStats(){
+  var keys = Object.keys(stats.days).sort().reverse();   // 字典序 = 时间序（零填充），保留最近 90 天
+  for (var i = STATS_KEEP_DAYS; i < keys.length; i++) delete stats.days[keys[i]];
+}
+function addStats(tomato, focusMin){
+  var key = localDateKey(new Date());
+  var d = stats.days[key];
+  if (!d) { d = { tomatoes: 0, focusMinutes: 0 }; stats.days[key] = d; }
+  if (tomato) d.tomatoes++;
+  d.focusMinutes = Math.max(0, d.focusMinutes + (tomato ? (focusMin || 0) : 0));
+  pruneStats();
+  storage.set(K_STATS, stats);
+  renderStats();
+}
+function runEffect(fx){
+  if (!fx) return;
+  switch (fx.type) {
+    case 'SAVE_RUNTIME':  saveRuntime(); break;
+    case 'SAVE_SETTINGS': storage.set(K_SETTINGS, state.settings); break;
+    case 'SAVE_STATS':    addStats(fx.tomato, fx.focusMinutes); break;
+    case 'PLAY_CHIME':    playChime(); break;
+    case 'FLASH':         flash(); break;
+    case 'ANNOUNCE':      announce(fx.text); break;
+  }
+}
+
+/* ---------------- 派发器 ---------------- */
+function clearResetCancel(){
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = 0; }
+}
+function dispatch(ev){
+  if (typeof ev === 'string') ev = { type: ev };
+  if (typeof ev.now !== 'number' || !isFinite(ev.now)) ev = Object.assign({}, ev, { now: Date.now() });
+  var prevStatus = state.status, prevPhase = state.phase;
+  var res = reducer(state, ev);
+  if (res.state === state) return res;         // 幂等：无变化不渲染、不落盘
+  state = res.state;
+  if (!state.confirmReset) clearResetCancel();
+  if (state.status === STATUS.RUNNING && (prevStatus !== STATUS.RUNNING || prevPhase !== state.phase)){
+    snapSessionTotal();
+  }
+  for (var i = 0; i < res.effects.length; i++) runEffect(res.effects[i]);
+  render();
+  return res;
+}
+function snapSessionTotal(){
+  sessionTotal = Math.max(1, durMs(state.phase, state.settings));
+}
+
+/* ---------------- 渲染 ---------------- */
+var RING_R = 118;
+var RING_C = 2 * Math.PI * RING_R;
+function setupRing(){
+  els.ringProg.style.strokeDasharray = String(RING_C);
+  els.ringProg.style.strokeDashoffset = String(RING_C);
+}
+function remainDisplay(){
+  if (state.status === STATUS.RUNNING) return Math.max(0, state.endEpochMs - nowMs());
+  if (state.status === STATUS.PAUSED)  return Math.max(0, Math.round(Number(state.remainMs) || 0));
+  return durMs(state.phase, state.settings);
+}
+function hintFor(st, ph){
+  if (st === STATUS.PAUSED)  return '已暂停 · 随时继续';
+  if (st === STATUS.RUNNING) return ph === PHASE.FOCUS ? '专注中 · 保持节奏' : (ph === PHASE.SHORT ? '放松眼睛，活动一下' : '深度恢复 · 别刷手机');
+  return ph === PHASE.FOCUS ? '准备开始一段专注' : (ph === PHASE.SHORT ? '来一段轻松的小憩' : '进入长休息，彻底放空');
+}
+function renderDots(cur){
+  var n = state.settings.rounds;
+  if (els.dots.childElementCount !== n){
+    els.dots.textContent = '';
+    for (var i = 0; i < n; i++){
+      var d = document.createElement('span');
+      d.className = 'dot';
+      els.dots.appendChild(d);
+    }
+  }
+  var list = els.dots.children;
+  for (var j = 0; j < list.length; j++){
+    var on = j < cur;
+    var isCur = state.phase === PHASE.FOCUS && j === cur && state.status !== STATUS.PAUSED;
+    list[j].className = 'dot' + (on ? ' on' : '') + (isCur ? ' cur' : '');
+  }
+  els.dots.setAttribute('aria-label', '已完成 ' + cur + ' / ' + n + ' 个番茄');
+}
+function renderStats(){
+  var d = stats.days[localDateKey(new Date())] || { tomatoes: 0, focusMinutes: 0 };
+  els.statTomatoes.textContent = String(d.tomatoes);
+  els.statMinutes.textContent = String(d.focusMinutes);
+}
+var lastTitleAt = 0, lastTitleText = '';
+function updateTitle(remain, force){
+  var text;
+  if (state.status === STATUS.RUNNING)      text = fmtTime(remain) + ' · ' + PHASE_META[state.phase].label;
+  else if (state.status === STATUS.PAUSED)  text = '⏸ 已暂停 · ' + fmtTime(remain);
+  else text = DEFAULT_TITLE;
+  if (!force && Date.now() - lastTitleAt < 250) return;   // 标题更新 ≤4 次/秒节流
+  if (text === lastTitleText) return;
+  lastTitleText = text; lastTitleAt = Date.now();
+  document.title = text;
+}
+function syncSoundBtn(){
+  var on = state.settings.sound;
+  els.soundBtn.classList.toggle('off', !on);
+  els.soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  els.soundBtn.title = on ? '提示音：开' : '提示音：关';
+}
+function render(){
+  var ph = state.phase, st = state.status, meta = PHASE_META[ph];
+  document.body.dataset.phase = ph;
+  document.body.dataset.status = st;
+
+  els.phaseLabel.textContent = meta.label;                 // 颜色+文案双通道阶段标识
+  var cur = state.cycleCount % state.settings.rounds;
+  if (ph === PHASE.LONG) cur = state.settings.rounds;
+  els.phaseSub.textContent = ph === PHASE.FOCUS
+    ? ('第 ' + (cur + 1) + ' / ' + state.settings.rounds + ' 轮')
+    : (ph === PHASE.SHORT ? ('已完成 ' + cur + ' 轮专注') : ('已完成 ' + state.settings.rounds + ' 轮 · 深度恢复'));
+
+  var remain = remainDisplay();
+  els.time.textContent = fmtTime(remain);
+  els.hint.textContent = hintFor(st, ph);
+
+  var mainText = st === STATUS.IDLE ? meta.idle : (st === STATUS.RUNNING ? '暂停' : '继续');
+  els.mainLabel.textContent = mainText;
+  els.mainBtn.setAttribute('aria-label', mainText);
+  els.iconPlay.style.display  = st === STATUS.RUNNING ? 'none' : '';
+  els.iconPause.style.display = st === STATUS.RUNNING ? '' : 'none';
+
+  if (state.confirmReset){
+    els.resetLabel.textContent = '确认重置？';
+    els.resetBtn.classList.add('danger');
+    els.resetBtn.setAttribute('aria-label', '再次点击以确认重置当前阶段');
+  } else {
+    els.resetLabel.textContent = '重置';
+    els.resetBtn.classList.remove('danger');
+    els.resetBtn.setAttribute('aria-label', '重置当前阶段');
+  }
+
+  renderDots(cur);
+
+  var frac = st === STATUS.IDLE ? 0 : 1 - Math.min(1, Math.max(0, remain / sessionTotal));
+  els.ringProg.style.strokeDashoffset = String(RING_C * (1 - frac));
+
+  syncSoundBtn();
+  syncSettingsUI();
+  renderStats();
+  updateTitle(remain, true);
+  schedule();
+}
+
+/* ---------------- 计时循环：rAF（前台平滑）+ 1s 间隔（后台心跳）双引擎 ---------------- */
+var rafId = 0;
+function schedule(){
+  if (!rafId && state.status === STATUS.RUNNING) rafId = requestAnimationFrame(frame);
+}
+function frame(){
+  rafId = 0;
+  if (state.status !== STATUS.RUNNING) return;
+  var remain = remainDisplay();
+  els.time.textContent = fmtTime(remain);
+  var frac = 1 - Math.min(1, Math.max(0, remain / sessionTotal));
+  els.ringProg.style.strokeDashoffset = String(RING_C * (1 - frac));
+  updateTitle(remain, false);
+  if (state.endEpochMs - nowMs() <= 0) dispatch({ type:'TICK', now: nowMs() });
+  if (state.status === STATUS.RUNNING) schedule();
+}
+setInterval(function(){
+  if (Math.abs(nowMs() - Date.now()) > 5000) reanchor();   // 休眠唤醒 / 系统改时钟兜底校准
+  if (state.status === STATUS.RUNNING){
+    saveRuntime();                                          // M5 · 心跳持久化（≤1s 节流）
+    updateTitle(remainDisplay(), false);
+    if (state.endEpochMs - Date.now() <= 0) dispatch({ type:'TICK' });
+  }
+}, 1000);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible'){
+    reanchor();                                             // 回到页面：重锚 + 立即校准（可能已过点）
+    dispatch({ type:'TICK' });
+    render();
+  } else {
+    if (state.status === STATUS.RUNNING) saveRuntime();
+  }
+});
+window.addEventListener('pagehide', function(){
+  if (state.status === STATUS.RUNNING) saveRuntime();
+});
+document.addEventListener('pointerdown', function(){ unlockAudio(); }, { passive: true });
+
+/* ---------------- 控制交互（M3/M4） ---------------- */
+function onMain(){
+  unlockAudio();
+  if (state.status === STATUS.IDLE)         dispatch({ type:'START' });
+  else if (state.status === STATUS.RUNNING) dispatch({ type:'PAUSE' });
+  else                                      dispatch({ type:'RESUME' });
+}
+function armResetCancel(){
+  clearResetCancel();
+  resetTimer = setTimeout(function(){ dispatch({ type:'RESET_CANCEL' }); }, 4000);
+}
+function onReset(){
+  dispatch({ type:'RESET' });                 // RUNNING 中 → 请求内联确认；IDLE/PAUSED → 直接重置
+  if (state.confirmReset) armResetCancel();
+}
+els.mainBtn.addEventListener('click', onMain);
+els.resetBtn.addEventListener('click', onReset);
+
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){
+    if (els.drawer.classList.contains('open')) { closeDrawer(); }
+    else if (state.confirmReset) { dispatch({ type:'RESET_CANCEL' }); }
+    return;
+  }
+  if (e.code === 'Space'){
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'BODY' || t === document.documentElement){
+      e.preventDefault();
+      onMain();
+    }
+  }
+});
+
+/* ---------------- 设置抽屉（M6） ---------------- */
+function openDrawer(){
+  lastFocus = document.activeElement;
+  els.drawer.classList.add('open');
+  els.backdrop.classList.add('show');
+  els.drawer.setAttribute('aria-hidden', 'false');
+  els.settingsBtn.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('lock');
+  syncSettingsUI();
+  setTimeout(function(){
+    var f = els.drawer.querySelector('input');
+    if (f) f.focus();
+  }, 240);
+}
+function closeDrawer(){
+  if (!els.drawer.classList.contains('open')) return;
+  if (els.drawer.contains(document.activeElement) && lastFocus && lastFocus.focus) lastFocus.focus();
+  els.drawer.classList.remove('open');
+  els.backdrop.classList.remove('show');
+  els.drawer.setAttribute('aria-hidden', 'true');
+  els.settingsBtn.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('lock');
+}
+els.settingsBtn.addEventListener('click', openDrawer);
+els.closeDrawerBtn.addEventListener('click', closeDrawer);
+els.doneBtn.addEventListener('click', closeDrawer);
+els.backdrop.addEventListener('click', closeDrawer);
+els.drawer.addEventListener('keydown', function(e){
+  if (e.key !== 'Tab') return;
+  var nodes = els.drawer.querySelectorAll('button, input, [href]');
+  var list = [];
+  for (var i = 0; i < nodes.length; i++){
+    if (!nodes[i].disabled && nodes[i].offsetParent !== null) list.push(nodes[i]);
+  }
+  if (!list.length) return;
+  var first = list[0], last = list[list.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+var FIELD_DEFS = [
+  ['setFocus', 'focusMin'],
+  ['setShort', 'shortMin'],
+  ['setLong',  'longMin'],
+  ['setRounds','rounds']
+];
+function kv(k, v){ var o = {}; o[k] = v; return o; }
+FIELD_DEFS.forEach(function(pair){
+  var el = byId(pair[0]), key = pair[1];
+  el.addEventListener('change', function(){
+    var lim = LIMITS[key];
+    var v = clampInt(el.value, lim[0], lim[1], DEFAULT_SETTINGS[key]);
+    el.value = String(v);                     // 非法输入立即回弹到最近合法值
+    dispatch({ type:'SETTING_CHANGE', patch: kv(key, v) });
+  });
+});
+els.setAutoStart.addEventListener('change', function(){
+  dispatch({ type:'SETTING_CHANGE', patch: { autoStart: this.checked } });
+});
+els.setSound.addEventListener('change', function(){
+  dispatch({ type:'SETTING_CHANGE', patch: { sound: this.checked } });
+});
+els.resetDefaultsBtn.addEventListener('click', function(){
+  dispatch({ type:'SETTING_CHANGE', patch: Object.assign({}, DEFAULT_SETTINGS) });
+  toast('已恢复默认设置');
+});
+els.soundBtn.addEventListener('click', function(){
+  unlockAudio();
+  dispatch({ type:'SETTING_CHANGE', patch: { sound: !state.settings.sound } });
+  toast(state.settings.sound ? '提示音已开启' : '提示音已关闭');
+});
+function syncSettingsUI(){
+  FIELD_DEFS.forEach(function(pair){
+    var el = byId(pair[0]);
+    if (document.activeElement !== el) el.value = String(state.settings[pair[1]]);
+  });
+  els.setAutoStart.checked = state.settings.autoStart;
+  els.setSound.checked = state.settings.sound;
+}
+
+/* ================================================================
+ * M5 · 刷新恢复与崩溃容错（过点只补发一次提醒，绝不重复弹）
+ * ================================================================ */
+function finishOverdue(phase, cycle){
+  var isFocus = phase === PHASE.FOCUS;
+  var cycleAfter = isFocus ? cycle + 1 : cycle;
+  var next = nextPhase(phase, cycleAfter, state.settings.rounds);
+  state = Object.assign({}, state, {
+    status: STATUS.IDLE,
+    phase: next,
+    cycleCount: (phase === PHASE.LONG) ? 0 : cycleAfter,
+    endEpochMs: null, remainMs: null, confirmReset: false
+  });
+  if (isFocus) addStats(true, Math.round(durMs(PHASE.FOCUS, state.settings) / MIN_MS));
+  saveRuntime();
+  flash();
+  playChime();                                 // 冷启动无手势时自动降级为视觉闪烁
+  toast('刚才的「' + PHASE_META[phase].label + '」已结束，进入' + PHASE_META[next].label);
+}
+function recover(){
+  var rt = storage.get(K_RUNTIME, null);
+  if (!rt || typeof rt !== 'object' || rt.v !== SCHEMA_V) { snapSessionTotal(); return; }
+  var phase = PHASE[rt.phase] ? rt.phase : null;
+  if (!phase) { snapSessionTotal(); return; }
+  var cycle = clampInt(rt.cycleCount, 0, 1000000, 0);
+  state = Object.assign({}, state, { phase: phase, cycleCount: cycle });
+  if (rt.status === STATUS.RUNNING && typeof rt.endEpochMs === 'number' && isFinite(rt.endEpochMs)){
+    var remain = Math.round(rt.endEpochMs - Date.now());
+    if (remain > 0){
+      state = Object.assign({}, state, { status: STATUS.RUNNING, endEpochMs: rt.endEpochMs, remainMs: remain });
+      pendingNotice = '已恢复进行中的计时 · 剩余 ' + fmtTime(remain);
+    } else {
+      finishOverdue(phase, cycle);             // 已过点 → 判定完成，只补发一次提醒
+      snapSessionTotal();
+      return;
+    }
+  } else if (rt.status === STATUS.PAUSED && typeof rt.remainMs === 'number' && isFinite(rt.remainMs) && rt.remainMs > 0){
+    var total = durMs(phase, state.settings);
+    var r = Math.min(Math.round(rt.remainMs), total);
+    state = Object.assign({}, state, { status: STATUS.PAUSED, remainMs: Math.max(1000, r), endEpochMs: null });
+    pendingNotice = '已恢复暂停的计时';
+  }
+  snapSessionTotal();
+}
+
+/* ---------------- 启动 ---------------- */
+recover();
+setupRing();
+render();
+if (pendingNotice) toast(pendingNotice);
+
+/* ================================================================
+ * TDD 自检套件：地址栏追加 #selftest 触发（覆盖规划师 T2/T3/M2/M3/M4/M6/M9 门禁）
+ * ================================================================ */
+function runSelfTests(){
+  var out = [], pass = 0;
+  function t(name, fn){ try { fn(); pass++; out.push('OK  ' + name); } catch (err) { out.push('FAIL ' + name + ' — ' + (err && err.message ? err.message : err)); } }
+  function assert(c, m){ if (!c) throw new Error(m || '断言失败'); }
+  function eq(a, b, m){ if (a !== b) throw new Error((m || 'eq') + ' → 实际 ' + JSON.stringify(a) + ' / 期望 ' + JSON.stringify(b)); }
+  var NOW = 1700000000000, MIN = MIN_MS;
+  function mk(o){
+    var s = { status: STATUS.IDLE, phase: PHASE.FOCUS, cycleCount: 0, endEpochMs: null, remainMs: null, confirmReset: false, settings: Object.assign({}, DEFAULT_SETTINGS) };
+    if (o) for (var k in o) s[k] = o[k];
+    return s;
+  }
+  var EVTS = ['START','PAUSE','RESUME','RESET','RESET_CONFIRM','RESET_CANCEL','TICK','COMPLETE','SETTING_CHANGE','AUTO_NEXT'];
+  function started(){ return reducer(mk({}), { type:'START', now: NOW }); }
+
+  t('T2 钳位：NaN/空串/负数/超界/小数', function(){
+    eq(clampInt(NaN,1,10,3),3); eq(clampInt('',1,10,3),3); eq(clampInt('abc',1,10,3),3);
+    eq(clampInt(-5,1,10,3),1); eq(clampInt(99,1,10,3),10); eq(clampInt(5.6,1,10,3),6); eq(clampInt(5.2,1,10,3),5);
+  });
+  t('T2 sanitize：忽略未知字段并钳位', function(){
+    var s = sanitizeSettings({ focusMin:9999, evil:'<img onerror=x>', zz:1, shortMin:-2 });
+    eq(s.focusMin,120); eq(s.shortMin,1); eq('evil' in s,false); eq('zz' in s,false);
+  });
+  t('T2 设置序列化往返无损', function(){
+    var s = Object.assign({}, DEFAULT_SETTINGS);
+    eq(JSON.stringify(sanitizeSettings(JSON.parse(JSON.stringify(s)))), JSON.stringify(s));
+  });
+  t('T2 各阶段时长均为安全整数毫秒', function(){
+    var cfgs = [DEFAULT_SETTINGS, { focusMin:120, shortMin:30, longMin:60, rounds:8, autoStart:true, sound:false }];
+    cfgs.forEach(function(cfg){
+      [PHASE.FOCUS, PHASE.SHORT, PHASE.LONG].forEach(function(p){
+        var ms = durMs(p, cfg);
+        assert(Number.isSafeInteger(ms) && ms > 0, 'dur ' + p);
+      });
+    });
+  });
+  t('fmtTime 边界（含 120 分钟三位数）', function(){
+    eq(fmtTime(0),'00:00'); eq(fmtTime(25*MIN),'25:00'); eq(fmtTime(120*MIN),'120:00');
+    eq(fmtTime(MIN-1),'01:00'); eq(fmtTime(-5),'00:00');
+  });
+  t('M3 START：IDLE→RUNNING，时间戳基准', function(){
+    var r = started();
+    eq(r.state.status, STATUS.RUNNING); eq(r.state.endEpochMs, NOW + 25*MIN);
+    assert(r.effects.some(function(f){ return f.type === 'SAVE_RUNTIME'; }), '缺少持久化副作用');
+  });
+  t('M3 START 幂等：RUNNING 重复点击零竞态', function(){
+    var s1 = started().state;
+    var r2 = reducer(s1, { type:'START', now: NOW + 7 });
+    eq(r2.state, s1);
+  });
+  t('M3 PAUSE 保留剩余整数毫秒', function(){
+    var r = reducer(started().state, { type:'PAUSE', now: NOW + 3000 });
+    eq(r.state.status, STATUS.PAUSED); eq(r.state.remainMs, 25*MIN - 3000); eq(r.state.endEpochMs, null);
+  });
+  t('M3 RESUME 以剩余量续跑', function(){
+    var p = reducer(started().state, { type:'PAUSE', now: NOW + 3000 }).state;
+    var r = reducer(p, { type:'RESUME', now: NOW + 9000 });
+    eq(r.state.status, STATUS.RUNNING); eq(r.state.endEpochMs, NOW + 9000 + (25*MIN - 3000));
+  });
+  t('M3 RUNNING 重置：内联确认→执行 / 可取消', function(){
+    var r = reducer(started().state, { type:'RESET', now: NOW });
+    eq(r.state.confirmReset, true); eq(r.state.status, STATUS.RUNNING);
+    var r2 = reducer(r.state, { type:'RESET_CONFIRM', now: NOW + 500 });
+    eq(r2.state.status, STATUS.IDLE); eq(r2.state.endEpochMs, null);
+    var r3 = reducer(started().state, { type:'RESET', now: NOW }).state;
+    var r4 = reducer(r3, { type:'RESET_CANCEL', now: NOW });
+    eq(r4.state.confirmReset, false); eq(r4.state.status, STATUS.RUNNING);
+  });
+  t('M4 TICK 未过点 → 原状态同引用返回', function(){
+    var s1 = started().state;
+    eq(reducer(s1, { type:'TICK', now: NOW + 1000 }).state, s1);
+  });
+  t('M4 TICK 过点 → 完成流转到短休并记统计', function(){
+    var r = reducer(started().state, { type:'TICK', now: NOW + 25*MIN + 1 });
+    eq(r.state.phase, PHASE.SHORT); eq(r.state.cycleCount, 1); eq(r.state.status, STATUS.IDLE);
+    assert(r.effects.some(function(f){ return f.type === 'PLAY_CHIME'; }), '缺少提示音副作用');
+    var st = null;
+    r.effects.forEach(function(f){ if (f.type === 'SAVE_STATS') st = f; });
+    assert(st && st.tomato === true && st.focusMinutes === 25, '统计副作用错误');
+  });
+  t('M2 第 4 轮专注结束 → 长休息', function(){
+    var s1 = reducer(mk({ cycleCount:3 }), { type:'START', now: NOW }).state;
+    eq(reducer(s1, { type:'COMPLETE', now: NOW }).state.phase, PHASE.LONG);
+  });
+  t('M2 长休结束 → 回到专注且轮次归零', function(){
+    var r = reducer(mk({ phase: PHASE.LONG, cycleCount: 4, status: STATUS.RUNNING, endEpochMs: NOW + MIN }), { type:'COMPLETE', now: NOW });
+    eq(r.state.phase, PHASE.FOCUS); eq(r.state.cycleCount, 0);
+  });
+  t('M4 自动开始：完成即进入下一段 RUNNING', function(){
+    var s = mk({ settings: Object.assign({}, DEFAULT_SETTINGS, { autoStart: true }) });
+    var r = reducer(reducer(s, { type:'START', now: NOW }).state, { type:'COMPLETE', now: NOW });
+    eq(r.state.status, STATUS.RUNNING); eq(r.state.phase, PHASE.SHORT); eq(r.state.endEpochMs, NOW + 5*MIN);
+  });
+  t('M6 SETTING_CHANGE 钳位且不中断运行中的计时', function(){
+    var s1 = started().state;
+    var r = reducer(s1, { type:'SETTING_CHANGE', patch: { focusMin: 9999, evil: 1 }, now: NOW });
+    eq(r.state.settings.focusMin, 120); eq('evil' in r.state.settings, false);
+    eq(r.state.endEpochMs, s1.endEpochMs); eq(r.state.status, STATUS.RUNNING);
+    assert(r.effects.some(function(f){ return f.type === 'SAVE_SETTINGS'; }), '缺少设置持久化');
+  });
+  t('M6 IDLE 修改时长立即刷新显示', function(){
+    var r = reducer(mk({}), { type:'SETTING_CHANGE', patch: { focusMin: 50 }, now: NOW });
+    eq(durMs(r.state.phase, r.state.settings), 50*MIN);
+  });
+  t('T3 全矩阵遍历：3 状态 × 3 阶段 × 10 事件 = 90 组合无死锁', function(){
+    var n = 0;
+    [STATUS.IDLE, STATUS.RUNNING, STATUS.PAUSED].forEach(function(st){
+      [PHASE.FOCUS, PHASE.SHORT, PHASE.LONG].forEach(function(ph){
+        EVTS.forEach(function(ev){
+          var s0 = mk({ status: st, phase: ph,
+            endEpochMs: st === STATUS.RUNNING ? NOW + MIN : null,
+            remainMs:   st === STATUS.PAUSED  ? MIN : null });
+          var r = reducer(s0, { type: ev, now: NOW, patch: { focusMin: 30 } });
+          assert(r && r.state, ev + '@' + st + '/' + ph + ' 未定义');
+          assert(STATUS[r.state.status], '非法 status @' + ev + '/' + st + '/' + ph);
+          assert(PHASE[r.state.phase], '非法 phase @' + ev + '/' + st + '/' + ph);
+          assert(Object.prototype.toString.call(r.effects) === '[object Array]', 'effects 非数组');
+          if (r.state.status === STATUS.RUNNING){
+            assert(Number.isSafeInteger(r.state.endEpochMs) && r.state.endEpochMs > NOW, 'RUNNING 缺合法 endEpochMs @' + ev);
+          } else {
+            eq(r.state.endEpochMs, null, '非 RUNNING 应无 endEpochMs @' + ev + '/' + st);
+          }
+          n++;
+        });
+      });
+    });
+    eq(n, 90, '矩阵组合数');
+  });
+  t('T3 随机游走 500 步不崩、不出现非法状态', function(){
+    var s = mk({}), seed = 42;
+    function rnd(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+    for (var i = 0; i < 500; i++){
+      var r = reducer(s, { type: EVTS[Math.floor(rnd() * EVTS.length)], now: NOW + i * 1000, patch: { focusMin: 20 } });
+      s = r.state;
+      assert(STATUS[s.status] && PHASE[s.phase], '游走后状态非法 @step ' + i);
+    }
+  });
+  t('M9 localDateKey 使用本地时区（非 UTC）', function(){
+    eq(localDateKey(new Date(2024, 0, 5)), '2024-01-05');
+    eq(localDateKey(new Date(2024, 10, 23)), '2024-11-23');
+  });
+
+  var panel = document.createElement('div');
+  panel.className = 'selftest';
+  var hd = document.createElement('div');
+  hd.className = 'hd';
+  hd.textContent = 'TDD 自检：' + pass + ' / ' + out.length + ' 项通过';
+  panel.appendChild(hd);
+  out.forEach(function(line){
+    var p = document.createElement('div');
+    if (line.indexOf('FAIL') === 0) p.className = 'fail';
+    p.textContent = line;
+    panel.appendChild(p);
+  });
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '关闭自检面板';
+  btn.addEventListener('click', function(){ panel.remove(); });
+  panel.appendChild(btn);
+  document.body.appendChild(panel);
+  try {
+    console.log('[PomoSelfTest] ' + pass + '/' + out.length);
+    out.forEach(function(l){ console.log(l); });
+  } catch (e) {}
+}
+if (/selftest/.test(location.hash + location.search)){
+  window.addEventListener('load', runSelfTests);
+}
+
+/* 仅供 QA / 调试探针（仅在 selftest 模式暴露） */
+if (/selftest/.test(location.hash + location.search)){
+  window.__POMO__ = {
+    getState: function(){ return state; },
+    dispatch: dispatch,
+    runSelfTests: runSelfTests,
+    storage: storage
+  };
+}
+})();
+</script>
+</body>
+</html>
