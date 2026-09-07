@@ -1164,13 +1164,15 @@ if (/selftest/.test(location.hash + location.search)){
   window.addEventListener('load', runSelfTests);
 }
 
-/* 仅供 QA / 调试探针 */
-window.__POMO__ = {
-  getState: function(){ return state; },
-  dispatch: dispatch,
-  runSelfTests: runSelfTests,
-  storage: storage
-};
+/* 仅供 QA / 调试探针（仅在 selftest 模式暴露） */
+if (/selftest/.test(location.hash + location.search)){
+  window.__POMO__ = {
+    getState: function(){ return state; },
+    dispatch: dispatch,
+    runSelfTests: runSelfTests,
+    storage: storage
+  };
+}
 })();
 </script>
 </body>
