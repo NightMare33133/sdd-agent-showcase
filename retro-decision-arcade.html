@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8-BIT 像素街机 · 人生重置与随机决策机</title>
+<meta name="color-scheme" content="dark light">
+<style>
+/* ============ 8-BIT RETRO PIXEL DECISION ARCADE — 单文件 · 零依赖 · 双主题 ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  font-family:'Press Start 2P','Courier New',ui-monospace,Menlo,Consolas,monospace;
+  background:var(--bg);
+  color:var(--fg);
+  font-size:12px;
+  line-height:1.7;
+  transition:background .25s steps(4),color .25s steps(4);
+  background-image:linear-gradient(var(--bg2),var(--bg));
+}
+:root{
+  --bg:#0b0d17;--bg2:#10131f;--panel:#161a2c;--panel2:#1e2340;
+  --border:#343b63;--border-hi:#5b66a3;
+  --fg:#e9edff;--fg-dim:#a6b0e0;--muted:#6b76ab;
+  --accent:#ffd23f;--accent2:#00e5ff;--p:#ff2e88;--c:#00ff9d;
+  --ok:#4ce06b;--bad:#ff4d5e;
+  --scan:rgba(255,255,255,.04);--vig:rgba(0,0,0,.38);
+}
+[data-theme="gb"]{
+  --bg:#9bbc0f;--bg2:#8bac0f;--panel:#8fbf2f;--panel2:#86a80d;
+  --border:#4f7018;--border-hi:#306230;
+  --fg:#0f380f;--fg-dim:#20401c;--muted:#4a6b2a;
+  --accent:#0f380f;--accent2:#0f380f;--p:#0f380f;--c:#20401c;
+  --ok:#306230;--bad:#0f380f;
+  --scan:rgba(15,56,15,.06);--vig:rgba(15,56,15,.18);
+}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:repeating-linear-gradient(0deg,var(--scan) 0 1px,transparent 1px 3px);}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:998;
+  background:radial-gradient(ellipse at center,transparent 55%,var(--vig) 100%);}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 16px 34px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.logo-main{display:block;font-size:20px;letter-spacing:2px;color:var(--accent);
+  text-shadow:4px 4px 0 var(--p),8px 8px 0 rgba(0,0,0,.35)}
+[data-theme="gb"] .logo-main{text-shadow:3px 3px 0 var(--panel2)}
+.logo-sub{display:block;font-size:9px;color:var(--muted);margin-top:8px;letter-spacing:1px}
+.hbtns{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.leds{display:flex;gap:6px;margin-right:4px}
+.led{width:10px;height:10px;border:2px solid rgba(0,0,0,.5)}
+.l1{background:#ff2e88;animation:blink 1.2s steps(2) infinite}
+.l2{background:#00ff9d;animation:blink 1.6s steps(2) infinite .3s}
+.l3{background:#00e5ff;animation:blink 2s steps(2) infinite .6s}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.15}}
+.btn8{font:inherit;font-size:11px;background:var(--panel2);color:var(--fg);
+  border:3px solid var(--border-hi);padding:10px 14px;cursor:pointer;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5);transition:transform .06s steps(2),box-shadow .06s steps(2)}
+.btn8:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+.btn8:active{transform:translate(2px,2px);box-shadow:0 0 0 rgba(0,0,0,.5)}
+.btn8.primary{background:var(--accent);color:#141400;border-color:var(--accent)}
+[data-theme="gb"] .btn8.primary{color:#9bbc0f;background:#0f380f;border-color:#0f380f}
+.btn8:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:3px 3px 0 rgba(0,0,0,.3)}
+.btn8.icon{padding:8px 10px;font-size:9px}
+.btn8.sel{padding:8px 10px;font-size:9px}
+input[type="text"]{font:inherit;font-size:11px;flex:1;min-width:180px;background:var(--bg);
+  border:3px solid var(--border-hi);color:var(--fg);padding:10px 12px;outline:none}
+input[type="text"]::placeholder{color:var(--muted)}
+:focus-visible{outline:3px dashed var(--accent);outline-offset:2px}
+.term-head{display:flex;align-items:center;gap:6px;border:3px solid var(--border-hi);border-bottom:none;background:var(--panel2);padding:6px 10px}
+.dot{width:8px;height:8px;background:var(--muted)}
+.d1{background:var(--p)}.d2{background:var(--accent)}.d3{background:var(--c)}
+.term-title{font-size:9px;color:var(--muted);margin-left:8px;letter-spacing:2px}
+#term{background:var(--bg);border:3px solid var(--border-hi);height:168px;overflow-y:auto;padding:10px 12px;font-size:10px;line-height:1.9}
+.tline{display:flex;gap:10px}
+.ttime{color:var(--muted);flex:none}
+.tmsg{color:var(--fg-dim);overflow-wrap:anywhere;white-space:pre-wrap}
+.tline.ok .tmsg{color:var(--ok)}
+.tline.err .tmsg{color:var(--bad)}
+.tline.warn .tmsg{color:var(--accent)}
+.tline.sys .tmsg{color:var(--accent2)}
+.caret{display:inline-block}
+.caret::after{content:'\25AE';color:var(--accent);animation:blink 1s steps(2) infinite;margin-left:4px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;align-items:start}
+.card{background:var(--panel);border:3px solid var(--border);padding:14px;
+  box-shadow:inset 0 0 0 3px var(--bg2),6px 6px 0 rgba(0,0,0,.45)}
+.card>h2{font-size:12px;color:var(--fg);margin-bottom:12px;letter-spacing:1px;
+  border-bottom:3px solid var(--border);padding-bottom:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
+.optlist{display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:216px;overflow-y:auto}
+.empty{font-size:10px;color:var(--muted);border:3px dashed var(--border);padding:14px;text-align:center}
+.chip{display:flex;align-items:center;gap:8px;border:3px solid var(--border);background:var(--panel2);padding:8px 10px}
+.chip-text{flex:1;font-size:10px;overflow-wrap:anywhere}
+.stars{display:flex;gap:2px;flex:none}
+.star{background:none;border:none;font:inherit;font-size:12px;color:var(--muted);cursor:pointer;padding:0 1px}
+.star.on{color:var(--accent);text-shadow:0 0 6px var(--accent)}
+[data-theme="gb"] .star.on{color:#0f380f;text-shadow:none}
+.chip-del{background:none;border:2px solid var(--border-hi);color:var(--bad);font:inherit;font-size:10px;
+  cursor:pointer;padding:2px 6px;flex:none}
+.chip-del:hover{background:var(--bad);color:#fff;border-color:var(--bad)}
+.spinning .chip{opacity:.55;pointer-events:none}
+.stage-wrap{margin:12px 0}
+.stg-label{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px}
+#stage{display:flex;flex-wrap:wrap;gap:8px;min-height:56px;border:3px dashed var(--border);
+  padding:10px;align-items:center;overflow-x:auto}
+.stg{border:3px solid var(--border);background:var(--panel2);padding:6px 10px;font-size:10px;color:var(--fg-dim);flex:none;max-width:200px;overflow-wrap:anywhere}
+.stg.cur{background:var(--p);color:#ffffff;border-color:var(--p);transform:scale(1.08);animation:bob .35s steps(2) infinite}
+[data-theme="gb"] .stg.cur{background:#0f380f;color:#9bbc0f;border-color:#0f380f}
+@keyframes bob{0%,100%{transform:scale(1.08)}50%{transform:scale(1.0)}}
+.stats{font-size:10px;color:var(--fg-dim);margin:10px 0 6px}
+.stats b{color:var(--accent)}
+.hist{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.hrow{display:flex;align-items:center;gap:8px;font-size:10px}
+.hlab{flex:none;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-dim)}
+.hbar{flex:1;height:10px;border:2px solid var(--border);background:var(--bg);position:relative;min-width:40px}
+.hbar i{position:absolute;top:0;bottom:0;left:0;background:var(--accent)}
+.hcnt{color:var(--accent2);flex:none}
+.profile{display:flex;gap:12px;align-items:center;border:3px solid var(--border);background:var(--panel2);padding:10px;margin-bottom:10px}
+.pcol{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+#avatar{width:72px;height:72px;image-rendering:pixelated;border:3px solid var(--border-hi);background:var(--bg)}
+.pface{font-size:11px;color:var(--bad)}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:13px;color:var(--accent);text-shadow:2px 2px 0 rgba(0,0,0,.5);margin-bottom:6px;overflow-wrap:anywhere}
+[data-theme="gb"] .pname{text-shadow:none}
+.ptags{font-size:10px;color:var(--fg-dim);margin-bottom:6px;overflow-wrap:anywhere}
+.pmeta{font-size:9px;color:var(--muted);line-height:1.9}
+.pday{margin-left:auto;font-size:12px;color:var(--accent2);text-align:right;flex:none}
+.bars{margin:6px 0}
+.brow{display:grid;grid-template-columns:44px 1fr 40px;align-items:center;gap:8px;font-size:10px;margin:7px 0}
+.brow span{color:var(--muted)}
+.brow b{text-align:right;color:var(--accent)}
+.bar{height:14px;border:3px solid var(--border-hi);background:var(--bg)}
+.bar i{display:block;height:100%;width:0%;background:var(--accent2);transition:width .3s steps(8)}
+.bar.low i{background:var(--bad);animation:blink .8s steps(2) infinite}
+[data-theme="gb"] .bar.low i{background:#0f380f}
+.attrs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0}
+.attr{border:3px solid var(--border);background:var(--panel2);padding:6px 4px;text-align:center}
+.attr span{display:block;font-size:9px;color:var(--muted);margin-bottom:4px}
+.attr b{font-size:11px;color:var(--accent2)}
+.abar{height:8px;border:2px solid var(--border);margin-top:5px;background:var(--bg)}
+.abar i{display:block;height:100%;width:0%;background:var(--accent2);transition:width .3s steps(6)}
+.lstage{min-height:124px;border:3px solid var(--border);background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;padding:14px;text-align:center;margin:10px 0;overflow:hidden}
+.lmain{font-size:12px;line-height:2;overflow-wrap:anywhere}
+.lsub{font-size:9px;color:var(--fg-dim);line-height:1.9;overflow-wrap:anywhere}
+.lmain.go{color:var(--ok)}
+.lmain.over{color:var(--bad);font-size:20px;letter-spacing:2px;animation:blink .7s steps(2) infinite;text-shadow:3px 3px 0 rgba(0,0,0,.6)}
+footer{margin-top:20px;text-align:center;font-size:9px;color:var(--muted);line-height:2}
+@media (max-width:900px){
+  .cards{grid-template-columns:1fr}
+  .logo-main{font-size:16px}
+  #term{height:140px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <span class="logo-main">DECISION&nbsp;ARCADE</span>
+    <span class="logo-sub">8-BIT 像素街机 · 人生重置与随机决策机 · INSERT COIN TO FATE v1.0</span>
+  </div>
+  <div class="hbtns">
+    <div class="leds"><i class="led l1"></i><i class="led l2"></i><i class="led l3"></i></div>
+    <button id="themeBtn" class="btn8 icon" title="切换 CRT 暗夜 / Game Boy 主题">◐ THEME</button>
+    <button id="soundBtn" class="btn8 icon" title="音效开关">♪ SFX:ON</button>
+    <button id="resetBtn" class="btn8 icon" title="清空全部数据">✕ RESET</button>
+  </div>
+</header>
+
+<div class="term-head"><i class="dot d1"></i><i class="dot d2"></i><i class="dot d3"></i>
+  <span class="term-title">SYSTEM TERMINAL v1.0 — READY</span></div>
+<div id="term" aria-live="polite"><div class="tline sys"><span class="ttime">--:--:--</span><span class="tmsg caret">SYSTEM BOOT... OK_</span></div></div>
+
+<main class="cards">
+  <!-- ============ M1 命运转轮 ============ -->
+  <section class="card" id="wheelCard">
+    <h2>🕹️ M1 · 命运转轮 WHEEL OF FATE</h2>
+    <form id="optForm" class="row" autocomplete="off">
+      <input type="text" id="optInput" maxlength="40" placeholder="输入命运选项，回车投币（≤40字）" aria-label="命运选项输入">
+      <button type="submit" class="btn8 primary">＋ INSERT</button>
+    </form>
+    <div id="optlist" class="optlist" aria-label="选项列表"></div>
+    <div class="row">
+      <button id="spinBtn" class="btn8 primary" style="flex:1">🎰 SPIN！转起来！（空格键）</button>
+      <button id="clearOpts" class="btn8 icon">清空</button>
+    </div>
+    <div class="stage-wrap">
+      <div class="stg-label">▼ STAGE · 转轮舞台</div>
+      <div id="stage"><span class="empty" style="flex:1">[ 舞台待机中 — 投入至少 2 个选项开始 ]</span></div>
+    </div>
+    <p class="stats">本次已转 <b id="spinCount">0</b> 次 · <span id="spinHint">★ 权重 = 被选中概率倍率（点击星星调档）</span></p>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <!-- ============ M2 人生重置机 ============ -->
+  <section class="card" id="lifeCard">
+    <h2>👾 M2 · 人生重置机 LIFE RESETTER</h2>
+    <div class="row">
+      <button id="rerollBtn" class="btn8 primary" style="flex:1">↺ INSERT COIN · 重置人生（R 键）</button>
+      <button id="stepBtn" class="btn8" style="flex:1">▶ NEXT DAY · 演绎一天（D 键）</button>
+    </div>
+    <div class="profile">
+      <div class="pcol">
+        <canvas id="avatar" width="12" height="12" aria-label="像素头像"></canvas>
+        <button id="avatarBtn" class="btn8 icon" title="随机新头像">↻</button>
+      </div>
+      <div class="pinfo">
+        <div class="pname" id="pName">--- 未投币 ---</div>
+        <div class="ptags" id="pTags">按下 INSERT COIN 生成你的像素人生</div>
+        <div class="pmeta" id="pMeta">TALENT: ---</div>
+      </div>
+      <div class="pday" id="pDay">DAY 00</div>
+    </div>
+    <div class="bars">
+      <div class="brow"><span>HP</span><div class="bar" id="hpBar"><i></i></div><b id="hpVal">0</b></div>
+      <div class="brow"><span>LUCK</span><div class="bar" id="luckBar"><i></i></div><b id="luckVal">0</b></div>
+    </div>
+    <div class="attrs" id="attrs"></div>
+    <div class="lstage"><div class="lmain" id="lMain">READY PLAYER ONE</div><div class="lsub" id="lSub">[ 你的命运尚未写入 — 投币开始 ]</div></div>
+  </section>
+</main>
+
+<footer>© 8-BIT DECISION ARCADE — 100% SINGLE FILE · ZERO DEPENDENCY · LOCAL ONLY<br>
+  快捷键：空格=转轮 · R=重置人生 · D=下一天 · T=主题</footer>
+</div>
+
+<script>
+'use strict';
+/* ================= T1 · 核心纯逻辑层（无 DOM 依赖，可独立单测） ================= */
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const rndInt=(n)=>Math.floor(Math.random()*n);
+const pickOne=(arr)=>arr[rndInt(arr.length)];
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function weightedPick(items){ // items:[{weight}] → index
+  const total=items.reduce((s,it)=>s+Math.max(0.01,it.weight),0);
+  let r=Math.random()*total;
+  for(let i=0;i<items.length;i++){r-=Math.max(0.01,items[i].weight);if(r<=0)return i;}
+  return items.length-1;
+}
+
+function genAvatarMatrix(seed){ // 12x12 像素矩阵：左右镜像对称 + 调色板
+  let s=(seed>>>0)||1;const rand=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;s>>>=0;return s/4294967296;};
+  const fg1=1+Math.floor(rand()*7),fg2=1+Math.floor(rand()*7),bg=0,eye=8;
+  const m=Array.from({length:12},()=>new Array(12).fill(bg));
+  for(let y=2;y<10;y++)for(let x=0;x<6;x++){
+    if(rand()<0.46){const v=rand()<0.7?fg1:fg2;m[y][x]=v;m[y][11-x]=v;}
+  }
+  for(let x=0;x<6;x++){ // 头顶轮廓填充
+    if(rand()<0.8){m[1][x]=fg1;m[1][11-x]=fg1;}
+  }
+  m[4][3]=eye;m[4][8]=eye;m[4][4]=eye;m[4][7]=eye; // 像素眼
+  m[7][4]=eye;m[7][7]=eye;m[7][5]=fg2;m[7][6]=fg2; // 嘴
+  return m;
+}
+
+const NAMES_A=['阿','小','老','大','金','银','铜','铁','狂','浪','呆','酷','呆','萌','咸'];
+const NAMES_B=['猫','狗','龙','虎','鹤','鱼','丸','包','面','茶','侠','客','神','仙','鬼'];
+const JOBS=['街角程序员','便利店夜班店员','像素画师','出租车哲学家','健身房卧推侠',
+  '天台诗人','代码民工','外卖骑手诗人','广场舞DJ','流浪猫观察员','自由摸鱼家','奶茶品鉴师'];
+const ORIGINS=['出生在城中村的握手楼里','出生在医院走廊的长椅上','出生在一辆夜班公交车上',
+  '出生在网吧的37号机旁边','出生在台风登陆前夜','出生在菜市场鱼摊后面','出生在大学宿舍的上铺'];
+const TALENTS=['天才黑客：智力+2','夜猫子体质：夜晚效率+50%','招财猫转世：LUCK初始+30',
+  '钢铁胃王：任何食物都不生病','社牛光环：第一天就交到朋友','过目不忘：智力+1','倒霉体质：一切减1（但更精彩）'];
+const EVENTS=[
+  {t:'你在街角捡到一枚 1987 年的游戏币， serotonin +1。',h:2,l:5},
+  {t:'老板画了一张巨大的饼，你咽了下去。',h:3,l:-2},
+  {t:'你在公园帮一位老奶奶修好了收音机，被请吃了一顿饭。',h:8,l:4},
+  {t:'深夜灵感爆发，你写下了改变一生的第一行代码。',h:5,l:8},
+  {t:'你感冒了，在床上躺了一整天刷手机。',h:-10,l:-3},
+  {t:'你参加了一场奇怪的剧本杀，认识了三位新朋友。',h:6,l:7},
+  {t:'你的伞被风吹坏了，你在雨里走了两公里。',h:-6,l:-5},
+  {t:'你中了一张彩票，虽然只中五块钱。',h:4,l:12},
+  {t:'你在地铁上让座，收获了一个微笑和一整天的阳气。',h:7,l:6},
+  {t:'你熬了个通宵赶方案，头发表示强烈抗议。',h:-12,l:-6},
+  {t:'你在便利店买了一支新出的冰淇淋，幸福感爆棚。',h:9,l:3},
+  {t:'你的旧手机摔碎了屏幕，但你花10块钱贴了个膜继续用。',h:-4,l:-2},
+  {t:'你决定开始跑步，第一天跑了 500 米就瘫在草地上。',h:5,l:4},
+  {t:'你收到了一封来自过去的自己的信（其实是你自己写的）。',h:6,l:9},
+  {t:'你在楼下撸了一整条街的流浪猫，手上有 12 道新抓痕。',h:8,l:10},
+  {t:'你做了一道黑暗料理，自己含泪吃完了。',h:-5,l:1},
+  {t:'你在图书馆看了一下午书，觉得世界都安静了。',h:7,l:5},
+  {t:'你被电梯困了 20 分钟，利用这段时间想通了一件事。',h:2,l:8},
+];
+const RANKS=[
+  {min:90,label:'SSS · 天选之子：你的人生是开了挂的像素游戏'},
+  {min:75,label:'S · 传奇玩家：命运为你专门写了一档节目'},
+  {min:60,label:'A · 高手玩家：你把烂牌打出了爽文剧情'},
+  {min:45,label:'B · 普通玩家：平淡，但每一帧都值得截图'},
+  {min:30,label:'C · 新手玩家：人生才刚开始，重开一局？'},
+  {min:0, label:'D · GAME OVER：也许，重置一次是个好主意'},
+];
+function grade(hp){for(const r of RANKS){if(hp>=r.min)return r.label;}return RANKS[RANKS.length-1].label;}
+
+function rollLife(){ // 生成完整角色档案
+  const name=pickOne(NAMES_A)+pickOne(NAMES_B)+(Math.random()<0.4?pickOne(NAMES_B):'');
+  const talentIdx=rndInt(TALENTS.length);
+  const lucky=TALENTS[talentIdx].indexOf('招财猫')>=0;
+  const attrs={INT:rndInt(6)+2,STR:rndInt(6)+2,CHA:rndInt(6)+2,VIT:rndInt(6)+2,SEN:rndInt(6)+2};
+  if(TALENTS[talentIdx].indexOf('智力+2')>=0)attrs.INT+=2;
+  if(TALENTS[talentIdx].indexOf('智力+1')>=0)attrs.INT+=1;
+  if(TALENTS[talentIdx].indexOf('倒霉体质')>=0){for(const k in attrs)attrs[k]=Math.max(1,attrs[k]-1);}
+  const hpMax=80+attrs.VIT*4+(lucky?20:0);
+  return {
+    id:Date.now()+''+rndInt(9999),
+    name,job:pickOne(JOBS),origin:pickOne(ORIGINS),talent:TALENTS[talentIdx],
+    attrs,hp:hpMax,hpMax,luck:clamp(rndInt(60)+(lucky?30:0),0,100),
+    day:0,alive:true,history:[],avatarSeed:rndInt(2147483647)
+  };
+}
+function stepLife(p){ // 演绎一天 → 返回事件结果（不改 UI）
+  if(!p.alive)return{over:true,msg:'人生已结束。'};
+  p.day++;
+  const ev=pickOne(EVENTS);
+  p.hp=clamp(p.hp+ev.h,0,p.hpMax);
+  p.luck=clamp(p.luck+(ev.l||0),0,100);
+  p.history.push({day:p.day,t:ev.t});
+  if(p.hp<=0){p.alive=false;return{over:true,ev,msg:ev.t};}
+  return{over:false,ev,msg:ev.t};
+}
+
+/* ================= T2 · 命运转轮机台 ================= */
+const $=(id)=>document.getElementById(id);
+const MAX_OPTS=24;
+function drawOpts(){
+  const box=$('optlist');box.innerHTML='';
+  if(!state.opts.length){box.innerHTML='<div class="empty">[ 无选项 — 至少投入 2 个命运才能转轮 ]</div>';return;}
+  state.opts.forEach(o=>{
+    const chip=document.createElement('div');chip.className='chip';
+    const tx=document.createElement('span');tx.className='chip-text';tx.textContent=o.text;
+    const stars=document.createElement('span');stars.className='stars';
+    for(let i=1;i<=5;i++){
+      const s=document.createElement('button');s.className='star'+(i<=o.weight?' on':'');
+      s.type='button';s.textContent='★';s.title='权重 '+i;
+      s.addEventListener('click',()=>{
+        o.weight=(o.weight===i)?((i>1)?i-1:1):i; // 再点同星降一档，最少1
+        Store.save();drawOpts();SFX.blip(660);
+      });
+      stars.appendChild(s);
+    }
+    const del=document.createElement('button');del.className='chip-del';del.type='button';del.textContent='DEL';
+    del.addEventListener('click',()=>{state.opts=state.opts.filter(x=>x!==o);Store.save();drawOpts();SFX.blip(180,0.06);});
+    chip.append(tx,stars,del);box.appendChild(chip);
+  });
+}
+function drawStage(curIdx){
+  const st=$('stage');st.innerHTML='';
+  if(!state.opts.length){st.innerHTML='<span class="empty" style="flex:1">[ 舞台待机中 — 投入至少 2 个选项开始 ]</span>';return;}
+  state.opts.forEach((o,i)=>{
+    const d=document.createElement('span');d.className='stg'+(i===curIdx?' cur':'');
+    d.textContent=o.text;st.appendChild(d);
+  });
+}
+function drawHist(){
+  const h=$('hist');
+  const total=state.opts.reduce((s,o)=>s+o.count,0);
+  $('spinCount').textContent=total;
+  h.innerHTML='';
+  const max=Math.max(1,...state.opts.map(o=>o.count));
+  state.opts.forEach(o=>{
+    if(!o.count)return;
+    const row=document.createElement('div');row.className='hrow';
+    const lab=document.createElement('span');lab.className='hlab';lab.textContent=o.text;lab.title=o.text;
+    const bar=document.createElement('div');bar.className='hbar';
+    const fill=document.createElement('i');fill.style.width=Math.round(o.count/max*100)+'%';
+    bar.appendChild(fill);
+    const cnt=document.createElement('span');cnt.className='hcnt';cnt.textContent=o.count;
+    row.append(lab,bar,cnt);h.appendChild(row);
+  });
+}
+let spinTimer=null;
+function spin(){
+  if(spinTimer)return;
+  if(state.opts.length<2){term('至少需要 2 个选项才能转轮，投币！','err');SFX.deny();return;}
+  const winner=weightedPick(state.opts);
+  let idx=0,step=0,totalSteps=24+((state.opts.length*2)|0);
+  const ease=t=>1-Math.pow(1-t,3); // easeOutCubic
+  $('wheelCard').classList.add('spinning');
+  $('spinBtn').disabled=true;
+  const tick=()=>{
+    step++;
+    const t=step/totalSteps;
+    const pause=8+Math.floor(ease(t)*ease(t)*170); // 后段越走越慢
+    drawStage(idx);
+    if(step%2===0)SFX.blip(440+(idx%state.opts.length)*38,0.03);
+    if(step>=totalSteps){
+      clearInterval(spinTimer);spinTimer=null;
+      drawStage(winner);
+      const w=state.opts[winner];
+      w.count=(w.count||0)+1;Store.save();drawHist();drawOpts();
+      term('命运判决 →「'+w.text+'」','ok');
+      SFX.win();flashLED();
+      $('wheelCard').classList.remove('spinning');
+      $('spinBtn').disabled=false;
+      return;
+    }
+    idx=(idx+1)%state.opts.length;
+    spinTimer=setTimeout(tick,pause);
+  };
+  tick();
+}
+
+/* ================= T3 · 人生重置机 UI ================= */
+function drawAvatar(p){
+  const cv=$('avatar'),ctx=cv.getContext('2d');
+  const m=genAvatarMatrix(p.avatarSeed);
+  const pal=['transparent','#ff2e88','#ffd23f','#00e5ff','#00ff9d','#ff8b3d','#b06bff','#ffffff'];
+  for(let y=0;y<12;y++)for(let x=0;x<12;x++){
+    ctx.fillStyle=pal[m[y][x]]||pal[0];ctx.fillRect(x,y,1,1);
+  }
+}
+function drawAttrs(p){
+  const box=$('attrs');box.innerHTML='';
+  Object.keys(p.attrs).forEach(k=>{
+    const a=document.createElement('div');a.className='attr';
+    const s=document.createElement('span');s.textContent=k;
+    const b=document.createElement('b');b.textContent=p.attrs[k];
+    const bar=document.createElement('div');bar.className='abar';
+    const fill=document.createElement('i');fill.style.width=Math.round(p.attrs[k]/10*100)+'%';
+    bar.appendChild(fill);a.append(s,b,bar);box.appendChild(a);
+  });
+}
+function drawLife(p){
+  drawAvatar(p);
+  $('pName').textContent=p.name;
+  $('pTags').textContent=p.job+' · '+p.origin;
+  $('pMeta').textContent='TALENT: '+p.talent;
+  $('pDay').textContent='DAY '+String(p.day).padStart(2,'0');
+  const hpPct=Math.round(p.hp/p.hpMax*100);
+  $('hpBar').firstChild.style.width=hpPct+'%';
+  $('hpVal').textContent=p.hp+'/'+p.hpMax;
+  if(hpPct<=30)$('hpBar').classList.add('low');else $('hpBar').classList.remove('low');
+  $('luckBar').firstChild.style.width=p.luck+'%';
+  $('luckVal').textContent=p.luck;
+  drawAttrs(p);
+}
+function setStage(main,sub,cls){
+  $('lMain').textContent=main;$('lSub').textContent=sub;
+  $('lMain').className='lmain'+(cls?' '+cls:'');
+}
+function showEvent(res){
+  if(res.over){
+    setStage('GAME OVER','「'+res.msg+'」 · 终局评级 → '+grade(state.life.hp),'over');
+    term('GAME OVER — '+state.life.name+' 存活了 '+state.life.day+' 天 · '+grade(state.life.hp),'err');
+    SFX.over();
+  }else{
+    setStage(res.msg,'DAY '+String(state.life.day).padStart(2,'0')+' · HP '+state.life.hp+'/'+state.life.hpMax+' · LUCK '+state.life.luck+(res.ev.h<0?' ▼':' ▲'));
+    term('DAY '+String(state.life.day).padStart(2,'0')+': '+res.msg,res.ev.h<0?'warn':'ok');
+    SFX.day(res.ev.h<0);
+  }
+}
+function reroll(){
+  state.life=rollLife();
+  Store.save();
+  drawLife(state.life);
+  setStage('角色档案已生成','「'+state.life.name+'」'+state.life.job+'，'+state.life.origin+'。按 D 键或 NEXT DAY 开始演绎人生。');
+  term('INSERT COIN → 新人生已写入：'+state.life.name+'（'+state.life.job+'）','sys');
+  SFX.coin();
+}
+function nextDay(){
+  if(!state.life){setStage('未投币','先按 INSERT COIN 生成角色');SFX.deny();return;}
+  const res=stepLife(state.life);
+  Store.save();drawLife(state.life);showEvent(res);
+}
+
+/* ================= M3 · 系统终端 ================= */
+function term(msg,type){
+  const t=$('term');
+  const line=document.createElement('div');line.className='tline'+(type?' '+type:'');
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const time=pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  const tt=document.createElement('span');tt.className='ttime';tt.textContent=time;
+  const tm=document.createElement('span');tm.className='tmsg';tm.textContent=msg;
+  line.append(tt,tm);
+  const old=t.firstChild;
+  if(old&&old.classList&&old.classList.contains('sys'))t.removeChild(old);
+  t.insertBefore(line,t.firstChild);
+  while(t.children.length>60)t.removeChild(t.lastChild);
+}
+
+/* ================= T4 · 存档（localStorage · 静默降级） ================= */
+const Store={
+  key:'retro-arcade-v1',
+  ok:(function(){try{localStorage.setItem('__t','1');localStorage.removeItem('__t');return true;}catch(e){return false;}})(),
+  load(){
+    if(!this.ok)return null;
+    try{
+      const raw=localStorage.getItem(this.key);if(!raw)return null;
+      const d=JSON.parse(raw);
+      return d&&typeof d==='object'?d:null;
+    }catch(e){return null;}
+  },
+  save(){
+    if(!this.ok)return;
+    try{localStorage.setItem(this.key,JSON.stringify({
+      theme:state.theme,opts:state.opts.map(o=>({text:o.text,weight:o.weight,count:o.count}))
+    }));}catch(e){}
+  }
+};
+function sanitizeOpts(raw){ // 恢复档案时的净化
+  if(!Array.isArray(raw))return [];
+  return raw.slice(0,MAX_OPTS).map(o=>{
+    const text=String(o&&o.text!=null?o.text:'').slice(0,40);
+    const weight=clamp(parseInt(o&&o.weight,10)||1,1,5);
+    const count=clamp(parseInt(o&&o.count,10)||0,0,99999);
+    return{text,weight,count};
+  }).filter(o=>o.text.length>0);
+}
+
+/* ================= T5 · Web Audio chiptune 音效引擎 ================= */
+const SFX={
+  on:true,ctx:null,
+  _ac(){if(!this.ctx){try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){this.on=false;}}
+    if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume();
+    return this.ctx;},
+  blip(freq,dur){
+    if(!this.on)return;const ac=this._ac();if(!ac)return;
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='square';o.frequency.value=freq;
+    g.gain.setValueAtTime(0.06,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+(dur||0.08));
+    o.connect(g).connect(ac.destination);
+    o.start();o.stop(ac.currentTime+(dur||0.08)+0.02);
+  },
+  coin(){[988,1319].forEach((f,i)=>setTimeout(()=>this.blip(f,0.09),i*90));},
+  win(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.blip(f,0.1),i*70));},
+  day(bad){bad?this.blip(196,0.12):this.blip(784,0.06);},
+  over(){[392,330,262,196].forEach((f,i)=>setTimeout(()=>this.blip(f,0.16),i*140));},
+  deny(){this.blip(110,0.15);},
+};
+
+/* ================= 启动与全局事件 ================= */
+let state={theme:'dark',opts:[],life:null};
+function flashLED(){const l=document.querySelector('.leds');if(!l)return;l.style.transform='scale(1.25)';setTimeout(()=>{l.style.transform='none';},220);}
+function applyTheme(){document.documentElement.setAttribute('data-theme',state.theme);}
+function initFromStore(){
+  const d=Store.load();
+  if(d){
+    state.theme=(d.theme==='gb')?'gb':'dark';
+    state.opts=sanitizeOpts(d.opts);
+    term('存档已恢复：'+state.opts.length+' 个选项','sys');
+  }else{
+    state.opts=[
+      {text:'吃火锅',weight:3,count:0},{text:'点外卖',weight:2,count:0},
+      {text:'跑步 5 公里',weight:1,count:0},{text:'写代码',weight:3,count:0},
+      {text:'睡个回笼觉',weight:4,count:0}
+    ];
+  }
+}
+function bind(){
+  $('optForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const inp=$('optInput');const v=inp.value.trim().slice(0,40);
+    if(!v){term('输入为空 — 命运不能为空白','err');SFX.deny();return;}
+    if(state.opts.length>=MAX_OPTS){term('选项已满（上限 '+MAX_OPTS+' 条）','err');SFX.deny();return;}
+    if(state.opts.some(o=>o.text===v)){term('选项重复：「'+v+'」','err');SFX.deny();inp.select();return;}
+    state.opts.push({text:v,weight:1,count:0});inp.value='';
+    Store.save();drawOpts();drawHist();
+    term('已投入选项：「'+v+'」','ok');SFX.blip(880);
+  });
+  $('spinBtn').addEventListener('click',()=>{spin();});
+  $('clearOpts').addEventListener('click',()=>{
+    if(!state.opts.length)return;
+    state.opts=[];Store.save();drawOpts();drawHist();drawStage(-1);
+    term('转轮选项已清空','warn');SFX.blip(220,0.1);
+  });
+  $('rerollBtn').addEventListener('click',reroll);
+  $('stepBtn').addEventListener('click',nextDay);
+  $('avatarBtn').addEventListener('click',()=>{
+    if(!state.life){SFX.deny();return;}
+    state.life.avatarSeed=rndInt(2147483647);drawAvatar(state.life);SFX.blip(660);
+  });
+  $('themeBtn').addEventListener('click',()=>{
+    state.theme=(state.theme==='dark')?'gb':'dark';applyTheme();Store.save();
+    term('主题切换 → '+((state.theme==='gb')?'GAME BOY 绿屏':'CRT 暗夜街机厅'),'sys');SFX.blip(520,0.08);
+  });
+  $('soundBtn').addEventListener('click',function(){
+    SFX.on=!SFX.on;this.textContent=SFX.on?'♪ SFX:ON':'♪ SFX:OFF';
+    if(SFX.on)SFX.blip(880,0.06);
+  });
+  $('resetBtn').addEventListener('click',()=>{
+    if(!confirm('确定清空全部数据（选项统计 + 主题）？此操作不可撤销。'))return;
+    try{localStorage.removeItem(Store.key);}catch(e){}
+    state.theme='dark';state.opts=[];state.life=null;
+    applyTheme();initFromStore();drawOpts();drawHist();drawStage(-1);
+    $('pName').textContent='--- 未投币 ---';
+    term('全部数据已重置 — INSERT COIN TO START','warn');SFX.coin();
+  });
+  document.addEventListener('keydown',e=>{
+    const tag=(e.target&&e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea')return; // 输入框内不触发快捷键
+    if(e.code==='Space'){e.preventDefault();spin();}
+    else if(e.key==='r'||e.key==='R')reroll();
+    else if(e.key==='d'||e.key==='D')nextDay();
+    else if(e.key==='t'||e.key==='T')$('themeBtn').click();
+  });
+}
+function init(){
+  initFromStore();applyTheme();bind();
+  drawOpts();drawHist();drawStage(-1);
+  term('DECISION ARCADE 已就绪 — 空格转轮 · R 重置人生 · D 下一天','sys');
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
