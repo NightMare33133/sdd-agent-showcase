@@ -1,43 +1,1321 @@
-bash
-# 1. 文件创建
-$ cat > cyber-muyu-2077.html << 'ENDOFFILE'
-... (完整HTML内容) ...
-ENDOFFILE
-✓ 文件创建成功
--rw-r--r-- 1 dify dify 50287 Sep 14 08:03 cyber-muyu-2077.html
-
-# 2. HTML结构验证
-$ head -5 cyber-muyu-2077.html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>赛博木鱼 2077：神经元粒子声学工作台</title>
+    <style>
+        /* ========== CSS VARIABLES THEME ========== */
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-panel: rgba(15, 15, 25, 0.95);
+            --neon-cyan: #00f5ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #00ff88;
+            --neon-orange: #ff6600;
+            --neon-purple: #8b00ff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #8888aa;
+            --glow-cyan: 0 0 20px rgba(0, 245, 255, 0.5);
+            --glow-pink: 0 0 20px rgba(255, 0, 255, 0.5);
+            --glow-green: 0 0 20px rgba(0, 255, 136, 0.5);
+            --muyu-size: min(300px, 60vw);
+            --panel-radius: 12px;
+        }
 
-# 3. 关键标签配对检查
-$ grep -c "<html" cyber-muyu-2077.html
-1
-$ grep -c "</html>" cyber-muyu-2077.html
-1
-$ grep -c "<script>" cyber-muyu-2077.html
-1
-$ grep -c "</script>" cyber-muyu-2077.html
-1
+        /* ========== RESET & BASE ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-# 4. JavaScript语法验证
-$ sed -n '/<script>/,/<\/script>/p' cyber-muyu-2077.html | sed '1d;$d' > ./check.js
-$ node --check ./check.js
-✓ JS语法验证通过
+        body {
+            font-family: 'Courier New', 'SF Mono', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            cursor: crosshair;
+        }
 
-# 5. CSS变量使用统计
-$ grep -c "var(--" cyber-muyu-2077.html
-49个CSS变量使用点
+        /* ========== MAIN CANVAS LAYERS ========== */
+        #neuronCanvas, #particleCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
 
-# 6. 安全审计
-$ grep -c "textContent" cyber-muyu-2077.html
-$ grep -c "sanitize" cyber-muyu-2077.html
-XSS防护机制已实现
+        #neuronCanvas { z-index: 0; }
+        #particleCanvas { z-index: 2; }
 
-# 7. 文件上传
-$ dify-agent file upload cyber-muyu-2077.html
-{"transfer_method":"tool_file","reference":"dify-file-ref:..."}
+        /* ========== HEADER ========== */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 25px;
+            background: linear-gradient(180deg, rgba(10, 10, 15, 0.95) 0%, transparent 100%);
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: var(--glow-cyan);
+            letter-spacing: 2px;
+        }
+
+        .logo span {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            -webkit-text-fill-color: var(--text-secondary);
+            display: block;
+        }
+
+        .bpm-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--neon-green);
+            text-shadow: var(--glow-green);
+        }
+
+        .bpm-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        /* ========== MUYU CONTAINER ========== */
+        .muyu-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .muyu-wrapper {
+            position: relative;
+            width: var(--muyu-size);
+            height: var(--muyu-size);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ========== MUYU SVG ========== */
+        .muyu-body {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 30px rgba(0, 245, 255, 0.4));
+            transition: filter 0.1s ease;
+        }
+
+        .muyu-body.hit {
+            filter: drop-shadow(0 0 60px rgba(255, 0, 255, 0.8)) drop-shadow(0 0 100px rgba(0, 245, 255, 0.6));
+            transform: scale(0.95);
+        }
+
+        .muyu-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 2px solid var(--neon-cyan);
+            opacity: 0;
+            animation: ringExpand 0.8s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes ringExpand {
+            0% { width: 80%; height: 80%; opacity: 0.8; }
+            100% { width: 250%; height: 250%; opacity: 0; }
+        }
+
+        /* ========== HIT COUNTER ========== */
+        .hit-counter {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .hit-count {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hit-label {
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* ========== CONTROL PANEL ========== */
+        .panel {
+            position: fixed;
+            background: var(--bg-panel);
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            border-radius: var(--panel-radius);
+            backdrop-filter: blur(10px);
+            z-index: 50;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            border-color: rgba(0, 245, 255, 0.5);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .panel-title {
+            font-size: 0.7rem;
+            color: var(--neon-cyan);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0, 245, 255, 0.2);
+        }
+
+        /* ========== LEFT PANEL - SOUND ENGINE ========== */
+        .panel-left {
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .control-value {
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        /* ========== CUSTOM SLIDER ========== */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+            border-radius: 2px;
+            outline: none;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        input[type="range"]:hover { opacity: 1; }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--neon-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: var(--glow-cyan);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--neon-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: var(--glow-cyan);
+        }
+
+        /* ========== RIGHT PANEL - BEAT CONTROL ========== */
+        .panel-right {
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+        }
+
+        .beat-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: transparent;
+            border: 1px solid var(--neon-pink);
+            border-radius: 6px;
+            color: var(--neon-pink);
+            font-family: inherit;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .beat-btn:hover {
+            background: rgba(255, 0, 255, 0.1);
+            box-shadow: var(--glow-pink);
+        }
+
+        .beat-btn.active {
+            background: var(--neon-pink);
+            color: var(--bg-primary);
+        }
+
+        .beat-pattern {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .beat-dot {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: rgba(0, 245, 255, 0.2);
+            border: 1px solid var(--neon-cyan);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .beat-dot.active {
+            background: var(--neon-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .beat-dot.current {
+            transform: scale(1.2);
+            box-shadow: 0 0 15px var(--neon-cyan);
+        }
+
+        /* ========== BOTTOM PANEL - VISUALIZER ========== */
+        .panel-bottom {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(500px, 90vw);
+            padding: 15px 20px;
+        }
+
+        .visualizer-bar {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            height: 50px;
+        }
+
+        .viz-bar {
+            width: 4px;
+            background: linear-gradient(180deg, var(--neon-pink), var(--neon-cyan));
+            border-radius: 2px;
+            transition: height 0.05s ease;
+            min-height: 4px;
+        }
+
+        /* ========== BOTTOM RIGHT - PRESETS ========== */
+        .panel-bottom-right {
+            bottom: 20px;
+            right: 20px;
+            width: 180px;
+        }
+
+        .preset-btn {
+            width: 100%;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            background: transparent;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 4px;
+            color: var(--neon-green);
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .preset-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--neon-green);
+        }
+
+        .preset-btn.active {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: var(--neon-green);
+        }
+
+        /* ========== BOTTOM LEFT - STATS ========== */
+        .panel-bottom-left {
+            bottom: 20px;
+            left: 20px;
+            width: 160px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 0.7rem;
+        }
+
+        .stat-label { color: var(--text-secondary); }
+
+        .stat-value {
+            color: var(--neon-orange);
+            font-weight: bold;
+        }
+
+        /* ========== KEYBOARD HINT ========== */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            opacity: 0.5;
+            z-index: 5;
+            text-align: center;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 0 3px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            font-size: 0.6rem;
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 900px) {
+            .panel-left, .panel-right {
+                position: fixed;
+                top: auto;
+                bottom: 100px;
+                transform: none;
+                width: 150px;
+            }
+            .panel-left { left: 10px; }
+            .panel-right { right: 10px; }
+            .panel-bottom-left, .panel-bottom-right { display: none; }
+            :root { --muyu-size: min(250px, 70vw); }
+        }
+
+        @media (max-width: 600px) {
+            .panel-left, .panel-right {
+                width: 130px;
+                padding: 10px;
+            }
+            .hit-count { font-size: 2rem; }
+            .keyboard-hint { display: none; }
+        }
+
+        /* ========== ANIMATIONS ========== */
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .pulse { animation: pulse 2s infinite; }
+
+        /* ========== LOADING STATE ========== */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            color: var(--neon-cyan);
+            animation: pulse 1s infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 2px;
+            background: rgba(0, 245, 255, 0.2);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: var(--neon-cyan);
+            width: 0%;
+            animation: loadProgress 1s ease-out forwards;
+        }
+
+        @keyframes loadProgress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-text">▶ 初始化声学引擎...</div>
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+    </div>
+
+    <!-- Canvas Layers -->
+    <canvas id="neuronCanvas"></canvas>
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            赛博木鱼 2077
+            <span>NEURON PARTICLE ACOUSTIC WORKBENCH</span>
+        </div>
+        <div class="bpm-display">
+            <span>BPM</span>
+            <span class="bpm-value" id="bpmDisplay">--</span>
+        </div>
+    </header>
+
+    <!-- Muyu Core -->
+    <div class="muyu-container" id="muyuContainer">
+        <div class="muyu-wrapper" id="muyuWrapper">
+            <svg class="muyu-body" id="muyuBody" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="url(#cyanGrad)" stroke-width="2" opacity="0.5"/>
+                <ellipse cx="100" cy="110" rx="70" ry="55" fill="url(#bodyGrad)" stroke="url(#pinkGrad)" stroke-width="2"/>
+                <ellipse cx="100" cy="85" rx="50" ry="25" fill="url(#domeGrad)"/>
+                <circle cx="100" cy="100" r="20" fill="url(#centerGrad)" opacity="0.8"/>
+                <circle cx="100" cy="100" r="12" fill="var(--neon-cyan)" opacity="0.9">
+                    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <line x1="40" y1="100" x2="60" y2="100" stroke="var(--neon-pink)" stroke-width="1" opacity="0.5"/>
+                <line x1="140" y1="100" x2="160" y2="100" stroke="var(--neon-pink)" stroke-width="1" opacity="0.5"/>
+                <defs>
+                    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="var(--neon-cyan)"/>
+                        <stop offset="100%" stop-color="var(--neon-green)"/>
+                    </linearGradient>
+                    <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="var(--neon-pink)"/>
+                        <stop offset="100%" stop-color="var(--neon-purple)"/>
+                    </linearGradient>
+                    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#1a1a2e"/>
+                        <stop offset="100%" stop-color="#0d0d15"/>
+                    </linearGradient>
+                    <linearGradient id="domeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#252540"/>
+                        <stop offset="100%" stop-color="#15152a"/>
+                    </linearGradient>
+                    <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="rgba(0,245,255,0.3)"/>
+                        <stop offset="100%" stop-color="rgba(0,245,255,0)"/>
+                    </radialGradient>
+                </defs>
+            </svg>
+            <div id="ringContainer"></div>
+        </div>
+        <div class="hit-counter">
+            <div class="hit-count" id="hitCount">0</div>
+            <div class="hit-label">TOTAL STRIKES</div>
+        </div>
+    </div>
+
+    <!-- Left Panel: Sound Engine -->
+    <div class="panel panel-left">
+        <div class="panel-title">◉ 声音引擎</div>
+        <div class="control-group">
+            <div class="control-label">
+                <span>频率 FREQ</span>
+                <span class="control-value" id="freqValue">440Hz</span>
+            </div>
+            <input type="range" id="frequency" min="80" max="880" value="440" step="10">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                <span>音色 TONE</span>
+                <span class="control-value" id="toneValue">50%</span>
+            </div>
+            <input type="range" id="tone" min="0" max="100" value="50">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                <span>混响 REVERB</span>
+                <span class="control-value" id="reverbValue">30%</span>
+            </div>
+            <input type="range" id="reverb" min="0" max="100" value="30">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                <span>衰减 DECAY</span>
+                <span class="control-value" id="decayValue">500ms</span>
+            </div>
+            <input type="range" id="decay" min="100" max="2000" value="500" step="100">
+        </div>
+    </div>
+
+    <!-- Right Panel: Beat Control -->
+    <div class="panel panel-right">
+        <div class="panel-title">◉ 节拍控制</div>
+        <div class="control-group">
+            <div class="control-label">
+                <span>BPM 速度</span>
+                <span class="control-value" id="bpmValue">120</span>
+            </div>
+            <input type="range" id="bpm" min="40" max="240" value="120">
+        </div>
+        <button class="beat-btn" id="autoBeatBtn">▶ 自动节拍</button>
+        <div class="beat-pattern" id="beatPattern">
+            <div class="beat-dot active" data-index="0"></div>
+            <div class="beat-dot" data-index="1"></div>
+            <div class="beat-dot" data-index="2"></div>
+            <div class="beat-dot" data-index="3"></div>
+            <div class="beat-dot active" data-index="4"></div>
+            <div class="beat-dot" data-index="5"></div>
+            <div class="beat-dot" data-index="6"></div>
+            <div class="beat-dot" data-index="7"></div>
+        </div>
+        <button class="beat-btn" id="clearPatternBtn" style="margin-top: 8px;">⟲ 清除节拍</button>
+    </div>
+
+    <!-- Bottom Panel: Visualizer -->
+    <div class="panel panel-bottom">
+        <div class="panel-title">◉ 声波可视化</div>
+        <div class="visualizer-bar" id="visualizerBar"></div>
+    </div>
+
+    <!-- Bottom Left: Stats -->
+    <div class="panel panel-bottom-left">
+        <div class="panel-title">◉ 统计</div>
+        <div class="stat-item">
+            <span class="stat-label">会话时长</span>
+            <span class="stat-value" id="sessionTime">00:00</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">每分钟敲击</span>
+            <span class="stat-value" id="ppm">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">连击数</span>
+            <span class="stat-value" id="combo">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">粒子总数</span>
+            <span class="stat-value" id="particleCount">0</span>
+        </div>
+    </div>
+
+    <!-- Bottom Right: Presets -->
+    <div class="panel panel-bottom-right">
+        <div class="panel-title">◉ 音色预设</div>
+        <button class="preset-btn active" data-preset="zen">🧘 禅意木鱼</button>
+        <button class="preset-btn" data-preset="cyber">⚡ 赛博重击</button>
+        <button class="preset-btn" data-preset="rain">🌧️ 雨滴轻敲</button>
+        <button class="preset-btn" data-preset="temple">🔔 古寺铜钟</button>
+    </div>
+
+    <!-- Keyboard Hint -->
+    <div class="keyboard-hint">
+        按 <span class="key">SPACE</span> 或 <span class="key">CLICK</span> 敲击 · 
+        <span class="key">1-4</span> 切换预设 · 
+        <span class="key">M</span> 静音
+    </div>
+
+    <script>
+        // ========== SECURITY: XSS SANITIZER ==========
+        const SecurityUtils = {
+            sanitize(str) {
+                if (typeof str !== 'string') return '';
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            },
+            validateNumber(val, min, max) {
+                const num = parseInt(val, 10);
+                return isNaN(num) ? min : Math.max(min, Math.min(max, num));
+            }
+        };
+
+        // ========== AUDIO ENGINE ==========
+        class AudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.masterGain = null;
+                this.convolver = null;
+                this.initialized = false;
+                this.muted = false;
+                this.params = { frequency: 440, tone: 50, reverb: 30, decay: 500 };
+            }
+
+            async init() {
+                if (this.initialized) return;
+                try {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = 0.5;
+                    this.masterGain.connect(this.ctx.destination);
+
+                    this.convolver = this.ctx.createConvolver();
+                    this.convolver.buffer = this.createReverbImpulse();
+
+                    this.reverbGain = this.ctx.createGain();
+                    this.reverbGain.gain.value = this.params.reverb / 100;
+                    this.convolver.connect(this.reverbGain);
+                    this.reverbGain.connect(this.masterGain);
+
+                    this.dryGain = this.ctx.createGain();
+                    this.dryGain.gain.value = 1 - (this.params.reverb / 200);
+                    this.dryGain.connect(this.masterGain);
+
+                    this.analyser = this.ctx.createAnalyser();
+                    this.analyser.fftSize = 64;
+                    this.masterGain.connect(this.analyser);
+
+                    this.initialized = true;
+                } catch (e) {
+                    console.error('Audio init failed:', e);
+                }
+            }
+
+            createReverbImpulse() {
+                const sampleRate = this.ctx.sampleRate;
+                const length = sampleRate * 2;
+                const impulse = this.ctx.createBuffer(2, length, sampleRate);
+                for (let channel = 0; channel < 2; channel++) {
+                    const data = impulse.getChannelData(channel);
+                    for (let i = 0; i < length; i++) {
+                        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / sampleRate * 3) * 0.5;
+                    }
+                }
+                return impulse;
+            }
+
+            updateParams(params) {
+                Object.assign(this.params, params);
+                if (this.initialized) {
+                    this.reverbGain.gain.value = this.params.reverb / 100;
+                    this.dryGain.gain.value = 1 - (this.params.reverb / 200);
+                }
+            }
+
+            playMuyu(velocity = 1) {
+                if (!this.initialized || this.muted) return;
+                const now = this.ctx.currentTime;
+                const freq = this.params.frequency;
+                const tone = this.params.tone / 100;
+                const decay = this.params.decay / 1000;
+
+                const osc1 = this.ctx.createOscillator();
+                osc1.type = 'sine';
+                osc1.frequency.value = freq;
+
+                const osc2 = this.ctx.createOscillator();
+                osc2.type = 'triangle';
+                osc2.frequency.value = freq * 0.5;
+
+                const osc3 = this.ctx.createOscillator();
+                osc3.type = 'sine';
+                osc3.frequency.value = freq * 2;
+
+                const gain1 = this.ctx.createGain();
+                const gain2 = this.ctx.createGain();
+                const gain3 = this.ctx.createGain();
+
+                const peakGain = 0.4 * velocity;
+                gain1.gain.setValueAtTime(0, now);
+                gain1.gain.linearRampToValueAtTime(peakGain * (1 - tone * 0.3), now + 0.005);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + decay);
+
+                gain2.gain.setValueAtTime(0, now);
+                gain2.gain.linearRampToValueAtTime(peakGain * tone * 0.5, now + 0.005);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + decay * 1.2);
+
+                gain3.gain.setValueAtTime(0, now);
+                gain3.gain.linearRampToValueAtTime(peakGain * 0.15, now + 0.005);
+                gain3.gain.exponentialRampToValueAtTime(0.001, now + decay * 0.4);
+
+                osc1.connect(gain1);
+                osc2.connect(gain2);
+                osc3.connect(gain3);
+
+                gain1.connect(this.dryGain);
+                gain1.connect(this.convolver);
+                gain2.connect(this.dryGain);
+                gain2.connect(this.convolver);
+                gain3.connect(this.dryGain);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc3.start(now);
+
+                const stopTime = now + decay + 0.1;
+                osc1.stop(stopTime);
+                osc2.stop(stopTime);
+                osc3.stop(stopTime);
+
+                return { timestamp: now, frequency: freq, velocity };
+            }
+
+            getAnalyserData() {
+                if (!this.analyser) return new Uint8Array(32).fill(0);
+                const data = new Uint8Array(this.analyser.frequencyBinCount);
+                this.analyser.getByteFrequencyData(data);
+                return data;
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                if (this.masterGain) {
+                    this.masterGain.gain.value = this.muted ? 0 : 0.5;
+                }
+                return this.muted;
+            }
+        }
+
+        // ========== PARTICLE SYSTEM ==========
+        class ParticleSystem {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.particles = [];
+                this.resize();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            emit(x, y, count = 30) {
+                const colors = [
+                    'rgba(0, 245, 255, ',
+                    'rgba(255, 0, 255, ',
+                    'rgba(0, 255, 136, ',
+                    'rgba(139, 0, 255, '
+                ];
+
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+                    const speed = 2 + Math.random() * 6;
+
+                    this.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1,
+                        decay: 0.015 + Math.random() * 0.02,
+                        size: 2 + Math.random() * 4,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        trail: []
+                    });
+                }
+            }
+
+            emitRing(x, y) {
+                for (let i = 0; i < 40; i++) {
+                    const angle = (Math.PI * 2 * i) / 40;
+                    this.particles.push({
+                        x: x + Math.cos(angle) * 20,
+                        y: y + Math.sin(angle) * 20,
+                        vx: Math.cos(angle) * (3 + Math.random() * 2),
+                        vy: Math.sin(angle) * (3 + Math.random() * 2),
+                        life: 1,
+                        decay: 0.02,
+                        size: 3,
+                        color: 'rgba(0, 245, 255, ',
+                        trail: []
+                    });
+                }
+            }
+
+            update() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.trail.push({ x: p.x, y: p.y });
+                    if (p.trail.length > 5) p.trail.shift();
+
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vx *= 0.98;
+                    p.vy *= 0.98;
+                    p.vy += 0.02;
+                    p.life -= p.decay;
+
+                    if (p.trail.length > 1) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(p.trail[0].x, p.trail[0].y);
+                        for (let j = 1; j < p.trail.length; j++) {
+                            this.ctx.lineTo(p.trail[j].x, p.trail[j].y);
+                        }
+                        this.ctx.strokeStyle = p.color + (p.life * 0.3) + ')';
+                        this.ctx.lineWidth = p.size * 0.5;
+                        this.ctx.stroke();
+                    }
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                    this.ctx.fillStyle = p.color + p.life + ')';
+                    this.ctx.fill();
+
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+            }
+
+            getCount() { return this.particles.length; }
+        }
+
+        // ========== NEURON NETWORK ==========
+        class NeuronNetwork {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.nodes = [];
+                this.intensity = 0;
+                this.resize();
+                this.initNodes();
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.initNodes();
+            }
+
+            initNodes() {
+                this.nodes = [];
+                const count = Math.min(Math.floor((this.canvas.width * this.canvas.height) / 25000), 50);
+
+                for (let i = 0; i < count; i++) {
+                    this.nodes.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 0.3,
+                        vy: (Math.random() - 0.5) * 0.3,
+                        radius: 2 + Math.random() * 2,
+                        phase: Math.random() * Math.PI * 2,
+                        activity: 0
+                    });
+                }
+            }
+
+            pulse(intensity = 1) {
+                this.intensity = Math.min(this.intensity + intensity, 3);
+                for (let i = 0; i < Math.floor(this.nodes.length * 0.3); i++) {
+                    this.nodes[Math.floor(Math.random() * this.nodes.length)].activity = 1;
+                }
+            }
+
+            update() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (const node of this.nodes) {
+                    node.x += node.vx;
+                    node.y += node.vy;
+                    node.phase += 0.02;
+                    node.activity *= 0.95;
+
+                    if (node.x < 0 || node.x > this.canvas.width) node.vx *= -1;
+                    if (node.y < 0 || node.y > this.canvas.height) node.vy *= -1;
+                    node.x = Math.max(0, Math.min(this.canvas.width, node.x));
+                    node.y = Math.max(0, Math.min(this.canvas.height, node.y));
+                }
+
+                const connectionDistance = 150 + this.intensity * 30;
+                this.ctx.lineWidth = 0.5;
+
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const dx = this.nodes[j].x - this.nodes[i].x;
+                        const dy = this.nodes[j].y - this.nodes[i].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < connectionDistance) {
+                            const alpha = (1 - dist / connectionDistance) * 0.3;
+                            const activity = Math.max(this.nodes[i].activity, this.nodes[j].activity);
+
+                            this.ctx.strokeStyle = activity > 0.1
+                                ? `rgba(0, 245, 255, ${alpha + activity * 0.5})`
+                                : `rgba(0, 245, 255, ${alpha * 0.3})`;
+                            this.ctx.lineWidth = activity > 0.1 ? 1 + activity : 0.5;
+
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(this.nodes[i].x, this.nodes[i].y);
+                            this.ctx.lineTo(this.nodes[j].x, this.nodes[j].y);
+                            this.ctx.stroke();
+                        }
+                    }
+                }
+
+                for (const node of this.nodes) {
+                    const baseAlpha = 0.3 + Math.sin(node.phase) * 0.1;
+                    const activityAlpha = node.activity * 0.7;
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, node.radius * 3, 0, Math.PI * 2);
+                    this.ctx.fillStyle = `rgba(0, 245, 255, ${activityAlpha * 0.2})`;
+                    this.ctx.fill();
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = `rgba(0, 245, 255, ${baseAlpha + activityAlpha})`;
+                    this.ctx.fill();
+                }
+
+                this.intensity *= 0.98;
+            }
+        }
+
+        // ========== VISUALIZER ==========
+        class Visualizer {
+            constructor(container, barCount = 32) {
+                this.container = container;
+                this.bars = [];
+                this.init(barCount);
+            }
+
+            init(count) {
+                this.container.innerHTML = '';
+                for (let i = 0; i < count; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'viz-bar';
+                    bar.style.height = '4px';
+                    this.container.appendChild(bar);
+                    this.bars.push(bar);
+                }
+            }
+
+            update(data) {
+                const step = Math.max(1, Math.floor(data.length / this.bars.length));
+                for (let i = 0; i < this.bars.length; i++) {
+                    const value = data[i * step] || 0;
+                    this.bars[i].style.height = Math.max(4, (value / 255) * 50) + 'px';
+                }
+            }
+        }
+
+        // ========== MAIN APPLICATION ==========
+        class CyberMuyu2077 {
+            constructor() {
+                this.audio = new AudioEngine();
+                this.particles = new ParticleSystem(document.getElementById('particleCanvas'));
+                this.neurons = new NeuronNetwork(document.getElementById('neuronCanvas'));
+                this.visualizer = new Visualizer(document.getElementById('visualizerBar'));
+
+                this.state = {
+                    hitCount: 0,
+                    combo: 0,
+                    lastHitTime: 0,
+                    autoBeat: false,
+                    beatPattern: [1, 0, 1, 0, 1, 0, 1, 0],
+                    currentBeat: 0,
+                    bpm: 120,
+                    sessionStart: Date.now(),
+                    totalClicks: 0,
+                    autoBeatTimer: 0
+                };
+
+                this.loadState();
+                this.bindEvents();
+                this.animate();
+            }
+
+            bindEvents() {
+                const muyuContainer = document.getElementById('muyuContainer');
+                muyuContainer.addEventListener('click', (e) => this.handleHit(e));
+                muyuContainer.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.handleHit(e.touches[0]);
+                }, { passive: false });
+
+                document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+
+                document.getElementById('frequency').addEventListener('input', (e) => {
+                    this.audio.updateParams({ frequency: SecurityUtils.validateNumber(e.target.value, 80, 880) });
+                    document.getElementById('freqValue').textContent = e.target.value + 'Hz';
+                    this.saveState();
+                });
+
+                document.getElementById('tone').addEventListener('input', (e) => {
+                    this.audio.updateParams({ tone: SecurityUtils.validateNumber(e.target.value, 0, 100) });
+                    document.getElementById('toneValue').textContent = e.target.value + '%';
+                    this.saveState();
+                });
+
+                document.getElementById('reverb').addEventListener('input', (e) => {
+                    this.audio.updateParams({ reverb: SecurityUtils.validateNumber(e.target.value, 0, 100) });
+                    document.getElementById('reverbValue').textContent = e.target.value + '%';
+                    this.saveState();
+                });
+
+                document.getElementById('decay').addEventListener('input', (e) => {
+                    this.audio.updateParams({ decay: SecurityUtils.validateNumber(e.target.value, 100, 2000) });
+                    document.getElementById('decayValue').textContent = e.target.value + 'ms';
+                    this.saveState();
+                });
+
+                document.getElementById('bpm').addEventListener('input', (e) => {
+                    this.state.bpm = SecurityUtils.validateNumber(e.target.value, 40, 240);
+                    document.getElementById('bpmValue').textContent = e.target.value;
+                    document.getElementById('bpmDisplay').textContent = this.state.autoBeat ? e.target.value : '--';
+                    this.saveState();
+                });
+
+                document.getElementById('autoBeatBtn').addEventListener('click', () => this.toggleAutoBeat());
+                document.getElementById('clearPatternBtn').addEventListener('click', () => this.clearBeatPattern());
+
+                document.querySelectorAll('.beat-dot').forEach(dot => {
+                    dot.addEventListener('click', () => {
+                        const idx = parseInt(dot.dataset.index, 10);
+                        this.state.beatPattern[idx] = this.state.beatPattern[idx] ? 0 : 1;
+                        dot.classList.toggle('active');
+                        this.saveState();
+                    });
+                });
+
+                document.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.applyPreset(btn.dataset.preset);
+                        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    });
+                });
+
+                window.addEventListener('resize', () => {
+                    this.particles.resize();
+                    this.neurons.resize();
+                });
+            }
+
+            async handleHit(e) {
+                await this.audio.init();
+
+                const rect = document.getElementById('muyuWrapper').getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+
+                const now = Date.now();
+                const timeSinceLast = now - this.state.lastHitTime;
+                this.state.lastHitTime = now;
+
+                this.state.combo = timeSinceLast < 1000 ? this.state.combo + 1 : 1;
+                const velocity = Math.min(1 + this.state.combo * 0.1, 2);
+
+                this.audio.playMuyu(velocity);
+                this.triggerVisualHit(x, y, velocity);
+
+                this.state.hitCount++;
+                this.state.totalClicks++;
+                document.getElementById('hitCount').textContent = this.state.hitCount.toLocaleString();
+                document.getElementById('combo').textContent = this.state.combo;
+
+                if (this.state.hitCount % 10 === 0) this.saveState();
+            }
+
+            triggerVisualHit(x, y, velocity) {
+                const muyuBody = document.getElementById('muyuBody');
+                muyuBody.classList.add('hit');
+                setTimeout(() => muyuBody.classList.remove('hit'), 150);
+
+                this.particles.emit(x, y, Math.floor(20 + this.state.combo * 5));
+                this.particles.emitRing(x, y);
+                this.neurons.pulse(velocity);
+
+                const container = document.getElementById('ringContainer');
+                const ring = document.createElement('div');
+                ring.className = 'muyu-ring';
+                container.appendChild(ring);
+                setTimeout(() => ring.remove(), 800);
+            }
+
+            handleKeyboard(e) {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    this.handleHit(e);
+                } else if (e.key === 'm' || e.key === 'M') {
+                    const muted = this.audio.toggleMute();
+                    document.querySelector('.keyboard-hint').innerHTML = muted 
+                        ? '🔇 已静音 - 按 <span class="key">M</span> 取消'
+                        : '按 <span class="key">SPACE</span> 或 <span class="key">CLICK</span> 敲击 · <span class="key">1-4</span> 切换预设 · <span class="key">M</span> 静音';
+                } else if (e.key >= '1' && e.key <= '4') {
+                    const presets = ['zen', 'cyber', 'rain', 'temple'];
+                    const idx = parseInt(e.key, 10) - 1;
+                    this.applyPreset(presets[idx]);
+                    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelector(`[data-preset="${presets[idx]}"]`).classList.add('active');
+                }
+            }
+
+            toggleAutoBeat() {
+                this.state.autoBeat = !this.state.autoBeat;
+                const btn = document.getElementById('autoBeatBtn');
+                btn.classList.toggle('active');
+                btn.textContent = this.state.autoBeat ? '⏸ 停止节拍' : '▶ 自动节拍';
+                document.getElementById('bpmDisplay').textContent = this.state.autoBeat ? this.state.bpm : '--';
+            }
+
+            clearBeatPattern() {
+                this.state.beatPattern = [0, 0, 0, 0, 0, 0, 0, 0];
+                document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+            }
+
+            applyPreset(preset) {
+                const presets = {
+                    zen: { frequency: 440, tone: 50, reverb: 30, decay: 500 },
+                    cyber: { frequency: 220, tone: 80, reverb: 50, decay: 800 },
+                    rain: { frequency: 880, tone: 20, reverb: 70, decay: 200 },
+                    temple: { frequency: 180, tone: 60, reverb: 80, decay: 1500 }
+                };
+
+                const params = presets[preset] || presets.zen;
+                this.audio.updateParams(params);
+
+                document.getElementById('frequency').value = params.frequency;
+                document.getElementById('tone').value = params.tone;
+                document.getElementById('reverb').value = params.reverb;
+                document.getElementById('decay').value = params.decay;
+
+                document.getElementById('freqValue').textContent = params.frequency + 'Hz';
+                document.getElementById('toneValue').textContent = params.tone + '%';
+                document.getElementById('reverbValue').textContent = params.reverb + '%';
+                document.getElementById('decayValue').textContent = params.decay + 'ms';
+
+                this.saveState();
+            }
+
+            saveState() {
+                try {
+                    localStorage.setItem('cyberMuyu2077', JSON.stringify({
+                        hitCount: this.state.hitCount,
+                        beatPattern: this.state.beatPattern,
+                        bpm: this.state.bpm,
+                        params: this.audio.params
+                    }));
+                } catch (e) { /* Storage unavailable */ }
+            }
+
+            loadState() {
+                try {
+                    const saved = localStorage.getItem('cyberMuyu2077');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        this.state.hitCount = data.hitCount || 0;
+                        this.state.beatPattern = data.beatPattern || [1, 0, 1, 0, 1, 0, 1, 0];
+                        this.state.bpm = data.bpm || 120;
+
+                        if (data.params) {
+                            this.audio.params = { ...this.audio.params, ...data.params };
+                            document.getElementById('frequency').value = this.audio.params.frequency;
+                            document.getElementById('tone').value = this.audio.params.tone;
+                            document.getElementById('reverb').value = this.audio.params.reverb;
+                            document.getElementById('decay').value = this.audio.params.decay;
+                        }
+
+                        document.getElementById('hitCount').textContent = this.state.hitCount.toLocaleString();
+                        document.getElementById('bpm').value = this.state.bpm;
+                        document.getElementById('bpmValue').textContent = this.state.bpm;
+                        document.getElementById('freqValue').textContent = this.audio.params.frequency + 'Hz';
+                        document.getElementById('toneValue').textContent = this.audio.params.tone + '%';
+                        document.getElementById('reverbValue').textContent = this.audio.params.reverb + '%';
+                        document.getElementById('decayValue').textContent = this.audio.params.decay + 'ms';
+
+                        document.querySelectorAll('.beat-dot').forEach((dot, i) => {
+                            dot.classList.toggle('active', !!this.state.beatPattern[i]);
+                        });
+                    }
+                } catch (e) { /* No saved state */ }
+            }
+
+            animate() {
+                this.neurons.update();
+                this.particles.update();
+                this.visualizer.update(this.audio.getAnalyserData());
+
+                if (this.state.autoBeat) {
+                    this.state.autoBeatTimer++;
+                    const beatsPerFrame = this.state.bpm / 60 / 60;
+                    if (this.state.autoBeatTimer % Math.max(1, Math.floor(60 / beatsPerFrame)) === 0) {
+                        if (this.state.beatPattern[this.state.currentBeat]) {
+                            this.handleHit(null);
+                        }
+                        this.state.currentBeat = (this.state.currentBeat + 1) % 8;
+                        document.querySelectorAll('.beat-dot').forEach((dot, i) => {
+                            dot.classList.toggle('current', i === this.state.currentBeat);
+                        });
+                    }
+                }
+
+                const elapsed = Math.floor((Date.now() - this.state.sessionStart) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                document.getElementById('sessionTime').textContent = 
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                document.getElementById('ppm').textContent = elapsed > 0 ? Math.floor((this.state.totalClicks / elapsed) * 60) : 0;
+                document.getElementById('particleCount').textContent = this.particles.getCount();
+
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // ========== INITIALIZATION ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }, 1200);
+            window.app = new CyberMuyu2077();
+        });
+    </script>
+</body>
+</html>
