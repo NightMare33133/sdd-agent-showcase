@@ -82,6 +82,15 @@
   @media (prefers-reduced-motion:reduce){
     .controls button,#toast,.hud .brand .cursor{transition:none;animation:none}
   }
+  }
+  @keyframes breathe {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+  }
+  .breathe {
+    animation: breathe 0.4s ease-in-out;
+  }
 </style>
 </head>
 <body>
@@ -497,6 +506,12 @@
       }
     });
     toast('主题切换: ' + themeName);
+    // 呼吸过渡效果
+    root.classList.add("breathe");
+    root.addEventListener("animationend", function handler() {
+      root.classList.remove("breathe");
+      root.removeEventListener("animationend", handler);
+    });
   }
 
   // 主题按钮事件
