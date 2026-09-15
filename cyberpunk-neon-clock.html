@@ -1,1 +1,314 @@
-已完成 NEON://CLOCK_2077 赛博朋克霓虹全屏数字时钟的 SDD 端到端交付：Spec→Plan→单文件源码→安全审计→沙盒实测（HTML 结构校验/ID 交叉校验/node --check/危险API扫描/外部资源扫描全部通过，TDD 冒烟测试 19/19 PASS）。推荐分支 feature/cyberpunk-neon-clock，建议文件名 cyberpunk-neon-clock.html。
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON://CLOCK_2077 赛博朋克霓虹时钟</title>
+<style>
+/* 赛博朋克霓虹风格 */
+:root {
+  --neon-cyan: #00f5ff;
+  --neon-pink: #ff00ff;
+  --neon-green: #00ff88;
+  --neon-orange: #ff6600;
+  --neon-purple: #8b00ff;
+  --bg-dark: #0a0a0f;
+  --bg-panel: rgba(15, 15, 25, 0.95);
+  --text-primary: #e0e0e0;
+  --text-secondary: #8888aa;
+  --glow-cyan: 0 0 20px rgba(0, 245, 255, 0.5);
+  --glow-pink: 0 0 20px rgba(255, 0, 255, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.container {
+  text-align: center;
+  padding: 2rem;
+  border: 1px solid var(--neon-cyan);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow: var(--glow-cyan);
+  max-width: 500px;
+  width: 90%;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-shadow: var(--glow-cyan);
+  letter-spacing: 2px;
+}
+
+.clock-display {
+  font-size: 4rem;
+  font-weight: bold;
+  margin: 1rem 0;
+  letter-spacing: 4px;
+  text-shadow: var(--glow-cyan);
+  animation: neon-breathe 3s ease-in-out infinite;
+}
+
+@keyframes neon-breathe {
+  0%, 100% { text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 30px var(--neon-cyan); }
+  50% { text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan), 0 0 15px var(--neon-cyan); }
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.mode-btn {
+  background: transparent;
+  border: 1px solid var(--neon-pink);
+  color: var(--neon-pink);
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: inherit;
+}
+
+.mode-btn:hover {
+  background: var(--neon-pink);
+  color: var(--bg-dark);
+  box-shadow: var(--glow-pink);
+}
+
+.mode-btn.active {
+  background: var(--neon-pink);
+  color: var(--bg-dark);
+  box-shadow: var(--glow-pink);
+}
+
+.controls {
+  margin-top: 1.5rem;
+}
+
+.control-btn {
+  background: transparent;
+  border: 1px solid var(--neon-green);
+  color: var(--neon-green);
+  padding: 0.5rem 1.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin: 0 0.5rem;
+  font-family: inherit;
+}
+
+.control-btn:hover {
+  background: var(--neon-green);
+  color: var(--bg-dark);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+}
+
+.hidden {
+  display: none;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>NEON://CLOCK_2077</h1>
+  
+  <div id="clock-mode">
+    <div class="clock-display" id="clock-display">00:00:00</div>
+  </div>
+  
+  <div id="stopwatch-mode" class="hidden">
+    <div class="clock-display" id="stopwatch-display">00:00:00.000</div>
+  </div>
+  
+  <div id="timer-mode" class="hidden">
+    <div class="clock-display" id="timer-display">00:00:00</div>
+  </div>
+  
+  <div class="mode-buttons">
+    <button class="mode-btn active" data-mode="clock">时钟</button>
+    <button class="mode-btn" data-mode="stopwatch">秒表</button>
+    <button class="mode-btn" data-mode="timer">计时器</button>
+  </div>
+  
+  <div class="controls">
+    <button class="control-btn hidden" id="start-stop-btn">开始</button>
+    <button class="control-btn hidden" id="reset-btn">重置</button>
+  </div>
+</div>
+
+<script>
+// 赛博朋克霓虹时钟 - 秒表/计时器切换模式
+const clockDisplay = document.getElementById('clock-display');
+const stopwatchDisplay = document.getElementById('stopwatch-display');
+const timerDisplay = document.getElementById('timer-display');
+const modeButtons = document.querySelectorAll('.mode-btn');
+const startStopBtn = document.getElementById('start-stop-btn');
+const resetBtn = document.getElementById('reset-btn');
+const clockModeDiv = document.getElementById('clock-mode');
+const stopwatchModeDiv = document.getElementById('stopwatch-mode');
+const timerModeDiv = document.getElementById('timer-mode');
+
+let currentMode = 'clock';
+let stopwatchInterval = null;
+let timerInterval = null;
+let stopwatchTime = 0;
+let timerTime = 0;
+let isRunning = false;
+
+// 格式化时间显示
+function formatTime(ms, showMs = false) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const milliseconds = Math.floor((ms % 1000) / 10);
+  
+  let timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  if (showMs) {
+    timeStr += `.${String(milliseconds).padStart(2, '0')}`;
+  }
+  return timeStr;
+}
+
+// 更新时钟显示
+function updateClock() {
+  const now = new Date();
+  const timeStr = formatTime(now.getTime() % (24 * 60 * 60 * 1000));
+  clockDisplay.textContent = timeStr;
+}
+
+// 切换模式
+function switchMode(mode) {
+  currentMode = mode;
+  
+  // 更新按钮状态
+  modeButtons.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  
+  // 显示/隐藏对应模式
+  clockModeDiv.classList.toggle('hidden', mode !== 'clock');
+  stopwatchModeDiv.classList.toggle('hidden', mode !== 'stopwatch');
+  timerModeDiv.classList.toggle('hidden', mode !== 'timer');
+  
+  // 显示/隐藏控制按钮
+  const showControls = mode !== 'clock';
+  startStopBtn.classList.toggle('hidden', !showControls);
+  resetBtn.classList.toggle('hidden', !showControls);
+  
+  // 重置按钮状态
+  if (showControls) {
+    startStopBtn.textContent = '开始';
+    isRunning = false;
+  } else {
+    // 如果切换到时钟模式，停止所有计时器
+    if (stopwatchInterval) {
+      clearInterval(stopwatchInterval);
+      stopwatchInterval = null;
+    }
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+}
+
+// 秒表功能
+function startStopwatch() {
+  if (isRunning) {
+    // 暂停
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+    startStopBtn.textContent = '继续';
+    isRunning = false;
+  } else {
+    // 开始
+    const startTime = Date.now() - stopwatchTime;
+    stopwatchInterval = setInterval(() => {
+      stopwatchTime = Date.now() - startTime;
+      stopwatchDisplay.textContent = formatTime(stopwatchTime, true);
+    }, 10);
+    startStopBtn.textContent = '暂停';
+    isRunning = true;
+  }
+}
+
+// 计时器功能
+function startTimer() {
+  if (isRunning) {
+    // 暂停
+    clearInterval(timerInterval);
+    timerInterval = null;
+    startStopBtn.textContent = '继续';
+    isRunning = false;
+  } else {
+    // 开始
+    const startTime = Date.now() - timerTime;
+    timerInterval = setInterval(() => {
+      timerTime = Date.now() - startTime;
+      timerDisplay.textContent = formatTime(timerTime);
+    }, 10);
+    startStopBtn.textContent = '暂停';
+    isRunning = true;
+  }
+}
+
+// 重置功能
+function reset() {
+  if (currentMode === 'stopwatch') {
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+    stopwatchTime = 0;
+    stopwatchDisplay.textContent = '00:00:00.000';
+    startStopBtn.textContent = '开始';
+    isRunning = false;
+  } else if (currentMode === 'timer') {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerTime = 0;
+    timerDisplay.textContent = '00:00:00';
+    startStopBtn.textContent = '开始';
+    isRunning = false;
+  }
+}
+
+// 事件监听
+modeButtons.forEach(btn => {
+  btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+});
+
+startStopBtn.addEventListener('click', () => {
+  if (currentMode === 'stopwatch') {
+    startStopwatch();
+  } else if (currentMode === 'timer') {
+    startTimer();
+  }
+});
+
+resetBtn.addEventListener('click', reset);
+
+// 初始化时钟
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+</body>
+</html>
