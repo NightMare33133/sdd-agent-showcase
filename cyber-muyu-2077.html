@@ -176,6 +176,63 @@
             text-transform: uppercase;
         }
 
+        /* ========== MERIT CYBER GLOW ========== */
+        .hit-counter {
+            position: relative;
+        }
+
+        .merit-glow-orb {
+            position: absolute;
+            top: 50%;
+            right: -26px;
+            width: 12px;
+            height: 12px;
+            transform: translateY(-50%);
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--neon-green) 0%, var(--neon-cyan) 60%, transparent 100%);
+            box-shadow: 0 0 6px var(--neon-green), 0 0 14px var(--neon-cyan), 0 0 28px rgba(0, 255, 65, 0.6);
+            animation: orbBreath 2.4s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes orbBreath {
+            0%, 100% { opacity: 0.55; transform: translateY(-50%) scale(1); }
+            50%      { opacity: 1;    transform: translateY(-50%) scale(1.35); }
+        }
+
+        .counter-flash {
+            animation: counterPulse 0.45s ease-out;
+        }
+
+        @keyframes counterPulse {
+            0% {
+                text-shadow: 0 0 4px var(--neon-cyan), 0 0 10px var(--neon-cyan),
+                             0 0 22px var(--neon-green), 0 0 40px rgba(0, 255, 65, 0.8);
+                filter: brightness(1.6);
+            }
+            100% { text-shadow: none; filter: brightness(1); }
+        }
+
+        .merit-float {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: var(--neon-green);
+            text-shadow: 0 0 6px var(--neon-green), 0 0 14px rgba(0, 255, 65, 0.7);
+            animation: meritRise 0.9s ease-out forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        @keyframes meritRise {
+            0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
+            25%  { opacity: 1; transform: translate(-50%, -4px) scale(1.05); }
+            100% { opacity: 0; transform: translate(-50%, -26px) scale(1); }
+        }
+
         /* ========== CONTROL PANEL ========== */
         .panel {
             position: fixed;
@@ -567,6 +624,7 @@
             <div id="ringContainer"></div>
         </div>
         <div class="hit-counter">
+            <div class="merit-glow-orb" id="meritGlowOrb"></div>
             <div class="hit-count" id="hitCount">0</div>
             <div class="hit-label">TOTAL STRIKES</div>
         </div>
@@ -1160,8 +1218,26 @@
                 this.state.totalClicks++;
                 document.getElementById('hitCount').textContent = this.state.hitCount.toLocaleString();
                 document.getElementById('combo').textContent = this.state.combo;
+                this.triggerCounterGlow();
 
                 if (this.state.hitCount % 10 === 0) this.saveState();
+            }
+
+            triggerCounterGlow() {
+                const counter = document.querySelector('.hit-counter');
+                const hitCount = document.getElementById('hitCount');
+
+                // 计数器霓虹闪光（重启动画）
+                counter.classList.remove('counter-flash');
+                void counter.offsetWidth;
+                counter.classList.add('counter-flash');
+
+                // 浮动 "+1 功德" 发光字
+                const floatText = document.createElement('div');
+                floatText.className = 'merit-float';
+                floatText.textContent = '+1 功德';
+                counter.appendChild(floatText);
+                setTimeout(() => floatText.remove(), 900);
             }
 
             triggerVisualHit(x, y, velocity) {
