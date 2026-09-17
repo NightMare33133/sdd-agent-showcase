@@ -599,6 +599,9 @@
                 document.getElementById('rainSlider').addEventListener('input', (e) => {
                     this.rainIntensity = parseInt(e.target.value) / 100;
                     document.getElementById('rainValue').textContent = `${e.target.value}%`;
+                    if (this.nodes.rainGain && this.audioContext) {
+                        this.nodes.rainGain.gain.setTargetAtTime(this.rainIntensity, this.audioContext.currentTime, 0.05);
+                    }
                     this.updateRaindrops();
                 });
                 
@@ -611,8 +614,8 @@
                 document.getElementById('ambienceSlider').addEventListener('input', (e) => {
                     this.ambienceVolume = parseInt(e.target.value) / 100;
                     document.getElementById('ambienceValue').textContent = `${e.target.value}%`;
-                    if (this.nodes.ambienceGain) {
-                        this.nodes.ambienceGain.gain.value = this.ambienceVolume * 0.5;
+                    if (this.nodes.ambienceGain && this.audioContext) {
+                        this.nodes.ambienceGain.gain.setTargetAtTime(this.ambienceVolume * 0.6, this.audioContext.currentTime, 0.05);
                     }
                 });
                 
@@ -651,34 +654,44 @@
                 
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                // 创建主增益节点
-                this.nodes.masterGain = this.audioContext.createGain();
-                this.nodes.masterGain.gain.value = 0.7;
-                this.nodes.masterGain.connect(this.audioContext.destination);
+                // 1. 创建专业级防爆音母带压限器 (Master Limiter / DynamicsCompressorNode)
+                this.compressor = this.audioContext.createDynamicsCompressor();
+                this.compressor.threshold.setValueAtTime(-12, this.audioContext.currentTime);
+                this.compressor.knee.setValueAtTime(30, this.audioContext.currentTime);
+                this.compressor.ratio.setValueAtTime(12, this.audioContext.currentTime);
+                this.compressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
+                this.compressor.release.setValueAtTime(0.25, this.audioContext.currentTime);
                 
-                // 创建分析器
+                // 2. 创建主增益节点并连接至压限器
+                this.nodes.masterGain = this.audioContext.createGain();
+                this.nodes.masterGain.gain.setValueAtTime(0.7, this.audioContext.currentTime);
+                this.nodes.masterGain.connect(this.compressor);
+                
+                // 3. 压限器输出连接至频谱分析器与系统声卡
                 this.analyser = this.audioContext.createAnalyser();
                 this.analyser.fftSize = 128;
-                this.nodes.masterGain.connect(this.analyser);
+                this.compressor.connect(this.analyser);
+                this.compressor.connect(this.audioContext.destination);
                 
-                // 创建氛围音增益
+                // 4. 创建各独立通道增益
                 this.nodes.ambienceGain = this.audioContext.createGain();
-                this.nodes.ambienceGain.gain.value = this.ambienceVolume * 0.5;
+                this.nodes.ambienceGain.gain.setValueAtTime(this.ambienceVolume * 0.6, this.audioContext.currentTime);
                 this.nodes.ambienceGain.connect(this.nodes.masterGain);
                 
-                // 创建鼓组增益
+                this.nodes.rainGain = this.audioContext.createGain();
+                this.nodes.rainGain.gain.setValueAtTime(this.rainIntensity, this.audioContext.currentTime);
+                this.nodes.rainGain.connect(this.nodes.ambienceGain);
+                
                 this.nodes.drumGain = this.audioContext.createGain();
-                this.nodes.drumGain.gain.value = 0.6;
+                this.nodes.drumGain.gain.setValueAtTime(0.65, this.audioContext.currentTime);
                 this.nodes.drumGain.connect(this.nodes.masterGain);
                 
-                // 创建和弦增益
                 this.nodes.chordGain = this.audioContext.createGain();
-                this.nodes.chordGain.gain.value = 0.4;
+                this.nodes.chordGain.gain.setValueAtTime(0.45, this.audioContext.currentTime);
                 this.nodes.chordGain.connect(this.nodes.masterGain);
                 
-                // 创建贝斯增益
                 this.nodes.bassGain = this.audioContext.createGain();
-                this.nodes.bassGain.gain.value = 0.5;
+                this.nodes.bassGain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
                 this.nodes.bassGain.connect(this.nodes.masterGain);
             }
             
@@ -727,25 +740,27 @@
             stopAllNodes() {
                 // 停止氛围音
                 if (this.nodes.rainNoise) {
-                    this.nodes.rainNoise.stop();
+                    try { this.nodes.rainNoise.stop(); } catch (e) {}
                     this.nodes.rainNoise = null;
                 }
                 
                 // 停止鼓组
                 if (this.nodes.drumOsc) {
-                    this.nodes.drumOsc.stop();
+                    try { this.nodes.drumOsc.stop(); } catch (e) {}
                     this.nodes.drumOsc = null;
                 }
                 
                 // 停止和弦
                 if (this.nodes.chordOscs) {
-                    this.nodes.chordOscs.forEach(osc => osc.stop());
+                    this.nodes.chordOscs.forEach(osc => {
+                        try { osc.stop(); } catch (e) {}
+                    });
                     this.nodes.chordOscs = null;
                 }
                 
                 // 停止贝斯
                 if (this.nodes.bassOsc) {
-                    this.nodes.bassOsc.stop();
+                    try { this.nodes.bassOsc.stop(); } catch (e) {}
                     this.nodes.bassOsc = null;
                 }
             }
@@ -766,173 +781,272 @@
                 }
             }
             
-            // 雨声生成
+            // 温暖细腻的赛博雨声生成（粉红噪声滤波）
             startRainAmbience() {
-                if (!this.isPlaying) return;
+                if (!this.isPlaying || !this.audioContext) return;
                 
-                // 创建白噪声作为雨声
-                const bufferSize = 2 * this.audioContext.sampleRate;
+                // 生成4秒循环的粉红噪声缓冲（Pink Noise）
+                const bufferSize = 4 * this.audioContext.sampleRate;
                 const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
                 const output = noiseBuffer.getChannelData(0);
                 
+                let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
                 for (let i = 0; i < bufferSize; i++) {
-                    output[i] = Math.random() * 2 - 1;
+                    const white = Math.random() * 2 - 1;
+                    b0 = 0.99886 * b0 + white * 0.0555179;
+                    b1 = 0.99332 * b1 + white * 0.0750759;
+                    b2 = 0.96900 * b2 + white * 0.1538520;
+                    b3 = 0.86650 * b3 + white * 0.3104856;
+                    b4 = 0.55000 * b4 + white * 0.5329522;
+                    b5 = -0.7616 * b5 - white * 0.0168980;
+                    output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.08;
+                    b6 = white * 0.115926;
                 }
                 
                 this.nodes.rainNoise = this.audioContext.createBufferSource();
                 this.nodes.rainNoise.buffer = noiseBuffer;
                 this.nodes.rainNoise.loop = true;
                 
-                // 添加滤波器使其更像雨声
-                const bandpass = this.audioContext.createBiquadFilter();
-                bandpass.type = 'bandpass';
-                bandpass.frequency.value = 1000;
-                bandpass.Q.value = 0.5;
+                // 双级滤波：消除尖锐高频，保留温润雨声质感
+                const lowpass = this.audioContext.createBiquadFilter();
+                lowpass.type = 'lowpass';
+                lowpass.frequency.setValueAtTime(1600, this.audioContext.currentTime);
+                lowpass.Q.setValueAtTime(0.5, this.audioContext.currentTime);
                 
                 const highpass = this.audioContext.createBiquadFilter();
                 highpass.type = 'highpass';
-                highpass.frequency.value = 500;
+                highpass.frequency.setValueAtTime(200, this.audioContext.currentTime);
                 
-                this.nodes.rainNoise.connect(bandpass);
-                bandpass.connect(highpass);
-                highpass.connect(this.nodes.ambienceGain);
+                this.nodes.rainNoise.connect(lowpass);
+                lowpass.connect(highpass);
+                highpass.connect(this.nodes.rainGain);
                 
                 this.nodes.rainNoise.start();
             }
             
-            // 鼓组生成
+            // 鼓组节拍生成（彻底修复递归死循环，规整单小节步进调度）
             startDrumPattern() {
-                if (!this.isPlaying) return;
+                if (!this.isPlaying || !this.audioContext) return;
                 
-                const beatDuration = 60 / this.bpm;
-                const pattern = [1, 0, 0.5, 0, 0.8, 0, 0.5, 0]; // 简单的8拍模式
+                const stepDuration = (60 / this.bpm) / 2; // 8分音符步长 (秒)
+                // 精致 Lo-Fi 律动节奏型：[Kick, Hat, Snare, Hat, Kick, Hat, Snare, Hat]
+                const pattern = [
+                    { type: 'kick',  velocity: 0.9 },
+                    { type: 'hat',   velocity: 0.3 },
+                    { type: 'snare', velocity: 0.6 },
+                    { type: 'hat',   velocity: 0.3 },
+                    { type: 'kick',  velocity: 0.75 },
+                    { type: 'hat',   velocity: 0.35 },
+                    { type: 'snare', velocity: 0.65 },
+                    { type: 'hat',   velocity: 0.25 }
+                ];
                 
-                pattern.forEach((velocity, index) => {
-                    if (velocity > 0) {
-                        const timer = setTimeout(() => {
-                            if (this.isPlaying) {
-                                this.playDrum(velocity);
-                                this.startDrumPattern(); // 递归继续模式
-                            }
-                        }, index * (beatDuration * 1000) / 2);
-                        this.timers.push(timer);
-                    }
+                // 1. 调度当前小节各拍点（单次触发，不进行递归）
+                pattern.forEach((hit, index) => {
+                    const timer = setTimeout(() => {
+                        if (this.isPlaying) {
+                            this.playDrum(hit.type, hit.velocity);
+                        }
+                    }, index * stepDuration * 1000);
+                    this.timers.push(timer);
                 });
+                
+                // 2. 当前小节播完后，由单一定时器平稳推进到下一个小节（无多重累积）
+                const measureTimer = setTimeout(() => {
+                    if (this.isPlaying) {
+                        this.startDrumPattern();
+                    }
+                }, pattern.length * stepDuration * 1000);
+                this.timers.push(measureTimer);
             }
             
-            playDrum(velocity) {
-                if (!this.audioContext) return;
+            playDrum(type, velocity) {
+                if (!this.audioContext || this.audioContext.state !== 'running') return;
+                const now = this.audioContext.currentTime;
                 
-                const osc = this.audioContext.createOscillator();
-                const gain = this.audioContext.createGain();
-                
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(150, this.audioContext.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                
-                gain.gain.setValueAtTime(velocity * 0.5, this.audioContext.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                
-                osc.connect(gain);
-                gain.connect(this.nodes.drumGain);
-                
-                osc.start(this.audioContext.currentTime);
-                osc.stop(this.audioContext.currentTime + 0.1);
-                
-                this.nodes.drumOsc = osc;
+                if (type === 'kick') {
+                    // 饱满温暖的 Lo-Fi 808 电子底鼓
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.exponentialRampToValueAtTime(38, now + 0.09);
+                    
+                    gain.gain.setValueAtTime(velocity * 0.75, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.nodes.drumGain);
+                    
+                    osc.start(now);
+                    osc.stop(now + 0.26);
+                } else if (type === 'snare') {
+                    // 柔和复古边缘小军鼓 (Rim/Snare)
+                    const bufferSize = Math.floor(this.audioContext.sampleRate * 0.12);
+                    const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                    const data = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    
+                    const noise = this.audioContext.createBufferSource();
+                    noise.buffer = noiseBuffer;
+                    
+                    const filter = this.audioContext.createBiquadFilter();
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(1600, now);
+                    filter.Q.setValueAtTime(1.5, now);
+                    
+                    const gain = this.audioContext.createGain();
+                    gain.gain.setValueAtTime(velocity * 0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.nodes.drumGain);
+                    
+                    noise.start(now);
+                    noise.stop(now + 0.13);
+                } else if (type === 'hat') {
+                    // 细腻黑胶质感闭镲 (Closed Hat)
+                    const bufferSize = Math.floor(this.audioContext.sampleRate * 0.04);
+                    const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                    const data = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    
+                    const noise = this.audioContext.createBufferSource();
+                    noise.buffer = noiseBuffer;
+                    
+                    const filter = this.audioContext.createBiquadFilter();
+                    filter.type = 'highpass';
+                    filter.frequency.setValueAtTime(6500, now);
+                    
+                    const gain = this.audioContext.createGain();
+                    gain.gain.setValueAtTime(velocity * 0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                    
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.nodes.drumGain);
+                    
+                    noise.start(now);
+                    noise.stop(now + 0.05);
+                }
             }
             
-            // 和弦进行
+            // 梦幻 Lo-Fi 和弦进行
             startChordProgression() {
-                if (!this.isPlaying) return;
+                if (!this.isPlaying || !this.audioContext) return;
                 
                 const beatDuration = 60 / this.bpm;
                 const chordDuration = beatDuration * 4; // 每个和弦持续4拍
                 
+                // 启动时立即演奏第一个和弦
+                this.playChord(chordDuration);
+                this.currentChordIndex = (this.currentChordIndex + 1) % 4;
+                
                 const timer = setTimeout(() => {
                     if (this.isPlaying) {
-                        this.playChord();
-                        this.currentChordIndex = (this.currentChordIndex + 1) % 4;
                         this.startChordProgression();
                     }
                 }, chordDuration * 1000);
                 this.timers.push(timer);
             }
             
-            playChord() {
-                if (!this.audioContext) return;
+            playChord(duration) {
+                if (!this.audioContext || this.audioContext.state !== 'running') return;
                 
                 const chords = this.chordProgressions[this.chordComplexity];
                 const chord = chords[this.currentChordIndex];
                 const baseNote = 60; // C4
+                const now = this.audioContext.currentTime;
                 
                 this.nodes.chordOscs = [];
                 
                 chord.forEach((interval, index) => {
                     const osc = this.audioContext.createOscillator();
+                    const filter = this.audioContext.createBiquadFilter();
                     const gain = this.audioContext.createGain();
                     
+                    // 模拟复古模拟合成器音色
                     osc.type = index % 2 === 0 ? 'sine' : 'triangle';
-                    osc.frequency.value = this.midiToFrequency(baseNote + interval);
+                    osc.frequency.setValueAtTime(this.midiToFrequency(baseNote + interval), now);
                     
-                    gain.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.1);
-                    gain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 2);
+                    // 温暖低通滤波（削弱刺耳高频，营造雨夜氛围）
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(900, now);
                     
-                    osc.connect(gain);
+                    // 平滑 ADSR 包络（轻柔渐入渐出，彻底防止破音）
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.12, now + 0.3);
+                    gain.gain.linearRampToValueAtTime(0.001, now + (duration || 2));
+                    
+                    osc.connect(filter);
+                    filter.connect(gain);
                     gain.connect(this.nodes.chordGain);
                     
-                    osc.start(this.audioContext.currentTime);
-                    osc.stop(this.audioContext.currentTime + 2);
+                    osc.start(now);
+                    osc.stop(now + (duration || 2) + 0.1);
                     
                     this.nodes.chordOscs.push(osc);
                 });
             }
             
-            // 贝斯线
+            // 贝斯线生成
             startBassLine() {
-                if (!this.isPlaying) return;
+                if (!this.isPlaying || !this.audioContext) return;
                 
                 const beatDuration = 60 / this.bpm;
-                const bassPattern = [0, 0, 7, 5, 0, 0, 7, 5]; // 简单的贝斯模式
+                const bassPattern = [0, 0, 7, 5, 0, 0, 7, 5]; // 8步贝斯律动
+                const stepTime = (beatDuration * 1000) / 2;
+                
+                this.playBassNote(bassPattern[this.noteIndex], stepTime / 1000);
+                this.noteIndex = (this.noteIndex + 1) % bassPattern.length;
                 
                 const timer = setTimeout(() => {
                     if (this.isPlaying) {
-                        this.playBassNote(bassPattern[this.noteIndex]);
-                        this.noteIndex = (this.noteIndex + 1) % bassPattern.length;
                         this.startBassLine();
                     }
-                }, beatDuration * 1000 / 2);
+                }, stepTime);
                 this.timers.push(timer);
             }
             
-            playBassNote(interval) {
-                if (!this.audioContext) return;
+            playBassNote(interval, duration) {
+                if (!this.audioContext || this.audioContext.state !== 'running') return;
+                const now = this.audioContext.currentTime;
                 
                 const osc = this.audioContext.createOscillator();
+                const filter = this.audioContext.createBiquadFilter();
                 const gain = this.audioContext.createGain();
                 
-                osc.type = 'sawtooth';
-                osc.frequency.value = this.midiToFrequency(36 + interval); // C2
+                // 三角波 + 低通滤波 = 温暖弹性的模拟 Sub-Bass
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(this.midiToFrequency(36 + interval), now);
                 
-                gain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
-                gain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(320, now);
                 
-                osc.connect(gain);
+                const noteDur = Math.min(duration || 0.4, 0.45);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.28, now + 0.03);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + noteDur);
+                
+                osc.connect(filter);
+                filter.connect(gain);
                 gain.connect(this.nodes.bassGain);
                 
-                osc.start(this.audioContext.currentTime);
-                osc.stop(this.audioContext.currentTime + 0.3);
+                osc.start(now);
+                osc.stop(now + noteDur + 0.05);
                 
                 this.nodes.bassOsc = osc;
             }
             
-            // 雷声效果
+            // 雷声效果（远空沉闷轰鸣，防尖锐突变）
             triggerThunder() {
                 if (!this.audioContext) return;
+                const now = this.audioContext.currentTime;
                 
-                // 创建低频噪声
-                const bufferSize = 2 * this.audioContext.sampleRate;
+                // 创建3秒低频噪声
+                const bufferSize = 3 * this.audioContext.sampleRate;
                 const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
                 const output = noiseBuffer.getChannelData(0);
                 
@@ -946,20 +1060,21 @@
                 // 低通滤波器
                 const lowpass = this.audioContext.createBiquadFilter();
                 lowpass.type = 'lowpass';
-                lowpass.frequency.value = 200;
+                lowpass.frequency.setValueAtTime(180, now);
+                lowpass.frequency.linearRampToValueAtTime(80, now + 2.5);
                 
-                // 增益包络
+                // 平滑滚雷增益包络
                 const gain = this.audioContext.createGain();
-                gain.gain.setValueAtTime(0, this.audioContext.currentTime);
-                gain.gain.linearRampToValueAtTime(0.8, this.audioContext.currentTime + 0.1);
-                gain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 2);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.5, now + 0.25);
+                gain.gain.linearRampToValueAtTime(0.001, now + 3);
                 
                 noise.connect(lowpass);
                 lowpass.connect(gain);
                 gain.connect(this.nodes.ambienceGain);
                 
-                noise.start(this.audioContext.currentTime);
-                noise.stop(this.audioContext.currentTime + 2);
+                noise.start(now);
+                noise.stop(now + 3.1);
                 
                 // 视觉效果
                 this.flashScreen();
