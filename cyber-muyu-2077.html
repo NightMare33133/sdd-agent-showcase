@@ -1428,10 +1428,17 @@ class GoldMeritSystem {
             }
 
             updateAutoChantUI(enabled) {
-                const btn = document.getElementById('autoChantBtn');
-                if (btn) {
-                    btn.classList.toggle('active', enabled);
-                    btn.textContent = enabled ? '⏸ 停止超度' : '▶ 自动超度';
+                const switchEl = document.getElementById('autoChaoSwitch');
+                if (switchEl) {
+                    switchEl.classList.toggle('active', enabled);
+                }
+                const labelEl = document.getElementById('autoChaoLabelDisplay');
+                if (labelEl) {
+                    labelEl.style.display = enabled ? 'block' : 'none';
+                }
+                const muyuBody = document.getElementById('muyuBody');
+                if (muyuBody) {
+                    muyuBody.classList.toggle('auto-chao-active', enabled);
                 }
                 document.getElementById('bpmDisplay').textContent = 
                     enabled ? this.state.bpm : (this.state.autoBeat ? this.state.bpm : '--');
@@ -1539,7 +1546,7 @@ class GoldMeritSystem {
                 });
 
                 document.getElementById('autoBeatBtn').addEventListener('click', () => this.toggleAutoBeat());
-                document.getElementById('autoChantBtn').addEventListener('click', () => this.toggleAutoChant());
+                document.getElementById('autoChaoSwitch').addEventListener('click', () => this.toggleAutoChant());
                 document.getElementById('clearPatternBtn').addEventListener('click', () => this.clearBeatPattern());
 
                 document.querySelectorAll('.beat-dot').forEach(dot => {
