@@ -25,6 +25,7 @@
 | [**`salary-fish-dashboard.html`**](salary-fish-dashboard.html) | **打工人“带薪摸鱼身价回收”看板** | 时薪与秒薪精密换算、带薪如厕/喝水摸鱼计时器、身价回本里程碑与数据统计 | `摸鱼`、`带薪摸鱼`、`工资计算`、`时薪看板`、`回自身价` |
 | [**`cyberpunk-neon-clock.html`**](cyberpunk-neon-clock.html) | **NEON://CLOCK_2077 赛博朋克霓虹时钟** | 全屏霓虹多色发光数字钟、高科技感 HUD 边框、秒脉冲与赛博网格背景 | `时钟`、`霓虹时钟`、`全屏表`、`赛博朋克时钟` |
 | [**`matrix-digital-rain.html`**](matrix-digital-rain.html) | **Matrix · 数字雨 Digital Rain** | 经典黑客帝国绿色字符流瀑布、触控字符涟漪、下落速度/密度参数 HUD 控制台 | `黑客帝国`、`数字雨`、`代码瀑布`、`Matrix`、`字符下落` |
+| [**`cyber-rain-window.html`**](cyber-rain-window.html) | **赛博雨窗 · 雾气涂鸦与水滴重力流体** | 纯 Canvas 2D 离屏复合雾气玻璃擦拭、水滴重力粘滞与融合物理、Web Audio 粉红噪音合成、拍立得明信片导出 | `雨窗`、`赛博雨窗`、`擦玻璃`、`雾气涂鸦`、`水滴`、`流体`、`下雨`、`雨夜` |
 
 ---
 
@@ -43,6 +44,7 @@
 - **`pomodoro.html` 令牌**：`--accent`, `--accent-2`, `--glow`, `--bg`, `--ink`, `--card`, `--line`
 - **`cyber-muyu-2077.html` 令牌**：`--neon-cyan`, `--neon-pink`, `--neon-green`, `--glow-cyan`, `--bg-primary`
 - **`rainy-night-cyber-radio.html` 令牌**：`--neon-blue`, `--neon-pink`, `--bg-primary`, `--bg-secondary`
+- **`cyber-rain-window.html` 令牌**：`--neon-cyan`, `--neon-pink`, `--neon-amber`, `--neon-green`, `--glow-cyan`, `--glow-pink`, `--panel-bg`, `--panel-border`
 
 ---
 
