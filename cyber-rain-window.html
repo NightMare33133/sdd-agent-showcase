@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>赛博雨窗 · 雾气涂鸦与水滴重力流体 | Cyber Rain Window 2077</title>
+  <style>
+    :root {
+      --neon-cyan: #00f3ff;
+      --neon-pink: #ff0055;
+      --neon-amber: #ffb800;
+      --neon-green: #00ff88;
+      --glow-cyan: 0 0 12px rgba(0, 243, 255, 0.55);
+      --glow-pink: 0 0 12px rgba(255, 0, 85, 0.55);
+      --bg-dark: #070a10;
+      --panel-bg: rgba(10, 15, 26, 0.72);
+      --panel-border: rgba(0, 243, 255, 0.22);
+      --panel-border-glow: rgba(0, 243, 255, 0.45);
+      --font-hud: 'JetBrains Mono', 'SF Mono', 'Courier New', monospace;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-ui);
+      color: #e2e8f0;
+      position: relative;
+    }
+
+    #stage-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    canvas.layer-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #bg-canvas { z-index: 1; }
+    #fog-canvas { z-index: 2; }
+    #rain-canvas { z-index: 3; }
+    #fx-canvas { z-index: 4; pointer-events: none; }
+
+    /* HUD Layer */
+    #hud-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 20px;
+      transition: opacity 0.3s ease;
+    }
+
+    #hud-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Top HUD Header */
+    .hud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: auto;
+    }
+
+    .brand-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .brand-title h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #fff;
+      text-shadow: var(--glow-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title h1 .badge {
+      font-family: var(--font-hud);
+      font-size: 0.65rem;
+      color: var(--neon-cyan);
+      border: 1px solid var(--neon-cyan);
+      padding: 1px 6px;
+      border-radius: 3px;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .brand-title .subtitle {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      font-family: var(--font-hud);
+      letter-spacing: 0.5px;
+    }
+
+    .telemetry-strip {
+      display: flex;
+      gap: 12px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      font-family: var(--font-hud);
+      font-size: 0.75rem;
+    }
+
+    .telemetry-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .telemetry-label {
+      font-size: 0.6rem;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .telemetry-val {
+      color: var(--neon-cyan);
+      font-weight: 600;
+    }
+
+    /* Top Actions & Audio Toggle */
+    .top-action-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-cyber {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--panel-border);
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: var(--font-hud);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .btn-cyber:hover {
+      border-color: var(--neon-cyan);
+      color: #fff;
+      box-shadow: var(--glow-cyan);
+      transform: translateY(-1px);
+    }
+
+    .btn-cyber:active {
+      transform: translateY(0);
+    }
+
+    .btn-cyber.active {
+      border-color: var(--neon-cyan);
+      background: rgba(0, 243, 255, 0.15);
+      color: var(--neon-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+
+    .btn-cyber.danger:hover {
+      border-color: var(--neon-pink);
+      color: #fff;
+      box-shadow: var(--glow-pink);
+    }
+
+    /* Bottom Control Bar */
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+    }
+
+    .quick-tips {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      max-width: 320px;
+      pointer-events: auto;
+      line-height: 1.4;
+    }
+
+    .quick-tips strong {
+      color: var(--neon-cyan);
+    }
+
+    .quick-tips .key-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-family: var(--font-hud);
+      font-size: 0.65rem;
+      color: #fff;
+    }
+
+    /* Floating Tool Shelf */
+    .tool-shelf {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--panel-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+      pointer-events: auto;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    }
+
+    /* Control Panel Drawer (Collapsible) */
+    .panel-drawer {
+      position: absolute;
+      right: 20px;
+      top: 74px;
+      width: 320px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      pointer-events: auto;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 20;
+    }
+
+    .panel-drawer.collapsed {
+      opacity: 0;
+      transform: translateX(30px) scale(0.96);
+      pointer-events: none;
+    }
+
+    .drawer-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+    }
+
+    .drawer-title span {
+      font-family: var(--font-hud);
+      font-size: 0.68rem;
+      color: var(--neon-cyan);
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      font-family: var(--font-hud);
+    }
+
+    .control-label .val {
+      color: var(--neon-cyan);
+    }
+
+    /* Custom Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--neon-cyan);
+      box-shadow: 0 0 8px var(--neon-cyan);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Graffiti Preset Tags */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .preset-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preset-btn:hover {
+      background: rgba(0, 243, 255, 0.15);
+      border-color: var(--neon-cyan);
+      color: #fff;
+    }
+
+    .custom-graffiti-box {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .custom-graffiti-input {
+      flex: 1;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      color: #fff;
+      font-size: 0.75rem;
+      outline: none;
+    }
+
+    .custom-graffiti-input:focus {
+      border-color: var(--neon-cyan);
+    }
+
+    /* Brush Size Selector */
+    .brush-mode-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .brush-btn {
+      flex: 1;
+      padding: 6px;
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .brush-btn.active {
+      background: rgba(0, 243, 255, 0.18);
+      border-color: var(--neon-cyan);
+      color: #fff;
+      box-shadow: var(--glow-cyan);
+    }
+
+    /* Squeegee Wiper Animation Overlay */
+    .wiper-arm {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 6px;
+      height: 90vh;
+      background: linear-gradient(to top, #1e293b, #475569);
+      transform-origin: bottom center;
+      transform: rotate(-70deg);
+      pointer-events: none;
+      display: none;
+      z-index: 5;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+    }
+
+    .wiper-blade {
+      position: absolute;
+      top: 0;
+      left: -8px;
+      width: 22px;
+      height: 70%;
+      background: #0f172a;
+      border-left: 2px solid #00f3ff;
+      box-shadow: 0 0 10px rgba(0,243,255,0.4);
+    }
+
+    /* Toast Notification */
+    #toast-msg {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--neon-cyan);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-size: 0.8rem;
+      font-family: var(--font-hud);
+      box-shadow: var(--glow-cyan);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 100;
+    }
+
+    #toast-msg.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Floating Immersive Toggle */
+    #btn-immersive-toggle {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      z-index: 30;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+
+    #btn-immersive-toggle:hover {
+      color: #fff;
+      border-color: var(--neon-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+
+    /* Responsive Mobile Tweaks */
+    @media (max-width: 768px) {
+      #hud-overlay {
+        padding: 10px 12px;
+      }
+      .brand-title h1 {
+        font-size: 0.95rem;
+      }
+      .telemetry-strip {
+        display: none;
+      }
+      .panel-drawer {
+        width: calc(100vw - 24px);
+        right: 12px;
+        top: 60px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      .quick-tips {
+        display: none;
+      }
+      .tool-shelf {
+        gap: 4px;
+        padding: 6px 8px;
+      }
+      .btn-cyber {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas Stack -->
+  <div id="stage-container">
+    <canvas id="bg-canvas" class="layer-canvas"></canvas>
+    <canvas id="fog-canvas" class="layer-canvas"></canvas>
+    <canvas id="rain-canvas" class="layer-canvas"></canvas>
+    <canvas id="fx-canvas" class="layer-canvas"></canvas>
+  </div>
+
+  <!-- Mechanical Wiper Visual Element -->
+  <div id="wiper-arm" class="wiper-arm">
+    <div class="wiper-blade"></div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="toast-msg"></div>
+
+  <!-- Immersive Mode Toggle Button (Always visible) -->
+  <button id="btn-immersive-toggle" title="切换 HUD 纯净/交互模式 (按 H)">👁️</button>
+
+  <!-- HUD Interface Layer -->
+  <div id="hud-overlay">
+    <!-- Top Header -->
+    <header class="hud-header">
+      <div class="brand-title">
+        <h1>
+          🪟 赛博雨窗
+          <span class="badge">VER 2077.9</span>
+        </h1>
+        <div class="subtitle">CYBER RAIN WINDOW · FOG GRAFFITI & FLUID DYNAMICS</div>
+      </div>
+
+      <!-- Telemetry Strip -->
+      <div class="telemetry-strip">
+        <div class="telemetry-item">
+          <span class="telemetry-label">Precipitation</span>
+          <span class="telemetry-val" id="telemetry-precip">42.8 mm/h</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Dew Point / Temp</span>
+          <span class="telemetry-val">17.2°C / 14.5°C</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Wind Vector</span>
+          <span class="telemetry-val" id="telemetry-wind">225° SW 14m/s</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">Active Droplets</span>
+          <span class="telemetry-val" id="telemetry-drops">0</span>
+        </div>
+      </div>
+
+      <!-- Top Action Bar -->
+      <div class="top-action-bar">
+        <button id="btn-audio" class="btn-cyber" title="开启/关闭赛博雨声环境白噪音 (按 M)">
+          <span id="audio-icon">🔇</span>
+          <span id="audio-text">赛博雨声: OFF</span>
+        </button>
+        <button id="btn-toggle-drawer" class="btn-cyber active" title="展开/收起参数调控台">
+          <span>⚙️</span>
+          <span>参数面板</span>
+        </button>
+        <button id="btn-export-shot" class="btn-cyber" title="导出拍立得赛博明信片 (按 S)">
+          <span>📸</span>
+          <span>抓拍</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Bottom Controls & Tools -->
+    <footer class="hud-bottom">
+      <div class="quick-tips">
+        💡 <strong>交互指南</strong>：在玻璃上<strong>按住拖拽</strong>可擦拭雾气留下清晰窗景；水滴受重力滑落会留下真实水痕并擦亮雾气。按 <span class="key-badge">H</span> 隐藏控制台，按 <span class="key-badge">C</span> 重新凝雾，按 <span class="key-badge">W</span> 启动雨刷。
+      </div>
+
+      <div class="tool-shelf">
+        <button id="btn-breathe" class="btn-cyber" title="呼出一口热气使玻璃迅速凝雾">
+          <span>💨</span> 呼气凝雾
+        </button>
+        <button id="btn-wiper-action" class="btn-cyber" title="启动赛博雨刷刮除整扇窗水珠与雾气">
+          <span>🧽</span> 启动雨刷
+        </button>
+        <button id="btn-clear-all" class="btn-cyber danger" title="清除全部涂鸦并彻底结霜">
+          <span>❄️</span> 全屏结雾
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Settings & Graffiti Drawer -->
+  <aside id="panel-drawer" class="panel-drawer">
+    <div class="drawer-title">
+      <h3>NEO 调控与涂鸦中枢</h3>
+      <span>STATUS: ACTIVE</span>
+    </div>
+
+    <!-- Brush Size -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>擦拭触控方式</span>
+        <span class="val" id="val-brush-mode">指腹 (中)</span>
+      </div>
+      <div class="brush-mode-group">
+        <button class="brush-btn" data-mode="fine" data-size="18">细指 (18px)</button>
+        <button class="brush-btn active" data-mode="medium" data-size="36">指腹 (36px)</button>
+        <button class="brush-btn" data-mode="wide" data-size="75">手掌 (75px)</button>
+      </div>
+    </div>
+
+    <!-- Rain Intensity Slider -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>降雨强度 (Rain Density)</span>
+        <span class="val" id="val-rain-density">暴雨 (80)</span>
+      </div>
+      <input type="range" id="slider-rain-density" min="10" max="150" value="80">
+    </div>
+
+    <!-- Wind Angle Slider -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>风向与倾斜角 (Wind Tilt)</span>
+        <span class="val" id="val-wind-angle">0° (垂直)</span>
+      </div>
+      <input type="range" id="slider-wind-angle" min="-45" max="45" value="0">
+    </div>
+
+    <!-- Refogging Rate Slider -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>雾气再凝结速率 (Re-fog Rate)</span>
+        <span class="val" id="val-refog-rate">慢速凝霜 (3)</span>
+      </div>
+      <input type="range" id="slider-refog-rate" min="0" max="10" value="3">
+    </div>
+
+    <!-- City Atmosphere Theme -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>窗外夜景氛围 (City Lights)</span>
+        <span class="val" id="val-city-theme">午夜赛博蓝紫</span>
+      </div>
+      <div class="brush-mode-group">
+        <button class="brush-btn active" data-theme="midnight">午夜蓝紫</button>
+        <button class="brush-btn" data-theme="amber">琥珀毒雾</button>
+        <button class="brush-btn" data-theme="emerald">翡翠黑客</button>
+      </div>
+    </div>
+
+    <!-- Preset Graffiti Stamps -->
+    <div class="control-row">
+      <div class="control-label">
+        <span>一键预设涂鸦印章</span>
+        <span class="val">点击即擦出文字</span>
+      </div>
+      <div class="preset-grid">
+        <button class="preset-btn" data-text="八奈见杏菜世界第一可爱！">🌸 败犬女主八奈见</button>
+        <button class="preset-btn" data-text="CYBERPUNK 2077">⚡ CYBERPUNK</button>
+        <button class="preset-btn" data-text="雨夜漫游 // NIGHT CALL">🌧️ 雨夜漫游</button>
+        <button class="preset-btn" data-text="WAKE UP, SAMURAI">🔥 SAMURAI</button>
+        <button class="preset-btn" data-text="NEO KOWLOON 2077">🏙️ 九龙城寨</button>
+        <button class="preset-btn" data-text="❤️ I LOVE RAIN ❤️">❤️ 爱在雨夜</button>
+      </div>
+      <div class="custom-graffiti-box">
+        <input type="text" id="custom-graffiti-text" class="custom-graffiti-input" placeholder="输入自定义涂鸦文字..." maxlength="20">
+        <button id="btn-custom-graffiti" class="btn-cyber">涂鸦</button>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    /**
+     * 🪟 赛博雨窗 · 雾气涂鸦与水滴重力流体 (Cyber Rain Window 2077)
+     * 单文件零依赖 SPA：双重离屏 Canvas 复合管线 + 物理水滴重力粘滞模拟 + Web Audio 白噪音合成
+     * SDD Agent Showcase · Architecture Standard Compliance
+     */
+
+    (function () {
+      'use strict';
+
+      // --- CONFIGURATION & STATE ---
+      const state = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+        rainDensity: 80,
+        windAngle: 0, // degrees
+        refogRate: 3, // 0 - 10
+        brushSize: 36,
+        brushMode: 'medium',
+        cityTheme: 'midnight', // midnight, amber, emerald
+        isWiping: false,
+        lastWipeX: 0,
+        lastWipeY: 0,
+        audioEnabled: false,
+        hudVisible: true,
+        drawerOpen: true,
+        dropletCount: 0
+      };
+
+      // DOM Elements
+      const stageContainer = document.getElementById('stage-container');
+      const bgCanvas = document.getElementById('bg-canvas');
+      const fogCanvas = document.getElementById('fog-canvas');
+      const rainCanvas = document.getElementById('rain-canvas');
+      const fxCanvas = document.getElementById('fx-canvas');
+
+      const bgCtx = bgCanvas.getContext('2d');
+      const fogCtx = fogCanvas.getContext('2d');
+      const rainCtx = rainCanvas.getContext('2d');
+      const fxCtx = fxCanvas.getContext('2d');
+
+      const hudOverlay = document.getElementById('hud-overlay');
+      const panelDrawer = document.getElementById('panel-drawer');
+      const wiperArm = document.getElementById('wiper-arm');
+      const toastMsg = document.getElementById('toast-msg');
+
+      // Telemetry DOM
+      const telemetryPrecip = document.getElementById('telemetry-precip');
+      const telemetryWind = document.getElementById('telemetry-wind');
+      const telemetryDrops = document.getElementById('telemetry-drops');
+
+      // --- WEB AUDIO SYNTHESIS ENGINE (PAUL KELLET PINK NOISE + DYNAMICS COMPRESSOR) ---
+      class CyberAudioEngine {
+        constructor() {
+          this.ctx = null;
+          this.masterCompressor = null;
+          this.rainGain = null;
+          this.squeegeeGain = null;
+          this.noiseNode = null;
+          this.filterNode = null;
+          this.isInitialized = false;
+        }
+
+        init() {
+          if (this.isInitialized) return;
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+
+          this.ctx = new AudioContext();
+
+          // Anti-clipping Master Limiter
+          this.masterCompressor = this.ctx.createDynamicsCompressor();
+          this.masterCompressor.threshold.setValueAtTime(-12, this.ctx.currentTime);
+          this.masterCompressor.knee.setValueAtTime(30, this.ctx.currentTime);
+          this.masterCompressor.ratio.setValueAtTime(12, this.ctx.currentTime);
+          this.masterCompressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
+          this.masterCompressor.release.setValueAtTime(0.25, this.ctx.currentTime);
+          this.masterCompressor.connect(this.ctx.destination);
+
+          // Rain Noise Subsystem (Paul Kellet 4-pole Pink Noise)
+          const bufferSize = this.ctx.sampleRate * 2;
+          const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.04;
+            b6 = white * 0.115926;
+          }
+
+          this.noiseNode = this.ctx.createBufferSource();
+          this.noiseNode.buffer = noiseBuffer;
+          this.noiseNode.loop = true;
+
+          // Gentle lowpass filter simulating rain through window pane
+          this.filterNode = this.ctx.createBiquadFilter();
+          this.filterNode.type = 'lowpass';
+          this.filterNode.frequency.setValueAtTime(850, this.ctx.currentTime);
+          this.filterNode.Q.setValueAtTime(1.2, this.ctx.currentTime);
+
+          this.rainGain = this.ctx.createGain();
+          this.rainGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+
+          this.noiseNode.connect(this.filterNode);
+          this.filterNode.connect(this.rainGain);
+          this.rainGain.connect(this.masterCompressor);
+          this.noiseNode.start(0);
+
+          // Squeegee / Glass friction audio bus
+          this.squeegeeGain = this.ctx.createGain();
+          this.squeegeeGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+          this.squeegeeGain.connect(this.masterCompressor);
+
+          this.isInitialized = true;
+        }
+
+        setRainActive(active, density = 80) {
+          if (!this.isInitialized) this.init();
+          if (!this.ctx) return;
+
+          if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+
+          const targetGain = active ? Math.min(0.08 + (density / 150) * 0.18, 0.28) : 0.0001;
+          const cutoffFreq = 400 + (density / 150) * 900;
+
+          const now = this.ctx.currentTime;
+          this.rainGain.gain.setTargetAtTime(targetGain, now, 0.2);
+          this.filterNode.frequency.setTargetAtTime(cutoffFreq, now, 0.3);
+        }
+
+        playSqueegeeFriction(speed = 10) {
+          if (!this.isInitialized || !state.audioEnabled || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const oscGain = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+
+            // Modulate squeak pitch based on wiping velocity
+            const baseFreq = 800 + Math.min(speed * 30, 2200);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, now + 0.08);
+
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(baseFreq * 1.1, now);
+            filter.Q.setValueAtTime(3.0, now);
+
+            oscGain.gain.setValueAtTime(0.04, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+
+            osc.connect(filter);
+            filter.connect(oscGain);
+            oscGain.connect(this.squeegeeGain);
+
+            osc.start(now);
+            osc.stop(now + 0.09);
+          } catch (e) {
+            // Audio error safety
+          }
+        }
+
+        playThunderRumble() {
+          if (!this.isInitialized || !state.audioEnabled || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(75, now);
+            osc.frequency.exponentialRampToValueAtTime(30, now + 2.5);
+
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.linearRampToValueAtTime(0.08, now + 0.3);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+
+            osc.connect(g);
+            g.connect(this.masterCompressor);
+            osc.start(now);
+            osc.stop(now + 2.9);
+          } catch (e) {}
+        }
+      }
+
+      const audio = new CyberAudioEngine();
+
+      // --- LAYER 0: PROCEDURAL CYBERPUNK BOKEH CITY ---
+      class CyberCityScape {
+        constructor() {
+          this.skyscrapers = [];
+          this.bokehCircles = [];
+          this.flyingVehicles = [];
+          this.neonSigns = [];
+          this.lightningTimer = 0;
+          this.lightningFlash = 0;
+          this.init();
+        }
+
+        init() {
+          this.skyscrapers = [];
+          this.bokehCircles = [];
+          this.flyingVehicles = [];
+          this.neonSigns = [];
+
+          const w = state.width;
+          const h = state.height;
+
+          // 1. Distant Skyscrapers (Layers of depth)
+          const numBuildings = Math.floor(w / 35);
+          for (let i = 0; i < numBuildings; i++) {
+            const bWidth = 30 + Math.random() * 50;
+            const bHeight = h * (0.35 + Math.random() * 0.45);
+            const bx = (i * (w / numBuildings)) + (Math.random() * 20 - 10);
+            const depth = 0.3 + Math.random() * 0.7; // 0.3 = far, 1.0 = close
+            const windows = [];
+            const winRows = Math.floor(bHeight / 14);
+            const winCols = Math.floor(bWidth / 9);
+
+            for (let r = 0; r < winRows; r++) {
+              for (let c = 0; c < winCols; c++) {
+                if (Math.random() > 0.45) {
+                  windows.push({
+                    x: c * 8 + 4,
+                    y: r * 12 + 6,
+                    color: Math.random() > 0.6 ? '#00f3ff' : (Math.random() > 0.5 ? '#ffb800' : '#ff0055'),
+                    alpha: 0.2 + Math.random() * 0.6
+                  });
+                }
+              }
+            }
+
+            this.skyscrapers.push({
+              x: bx,
+              y: h - bHeight,
+              w: bWidth,
+              h: bHeight,
+              depth: depth,
+              windows: windows,
+              hasAntenna: Math.random() > 0.6
+            });
+          }
+
+          // Sort buildings by depth
+          this.skyscrapers.sort((a, b) => a.depth - b.depth);
+
+          // 2. High-rise Cyber Kanji / Neon Billboards
+          const signTexts = ['電脳', '2077', '雨夜', 'NEO-TYO', '神羅', 'CYBER', 'LO-FI', '公安9課'];
+          for (let i = 0; i < 7; i++) {
+            this.neonSigns.push({
+              x: Math.random() * w,
+              y: h * 0.3 + Math.random() * (h * 0.4),
+              text: signTexts[Math.floor(Math.random() * signTexts.length)],
+              color: i % 2 === 0 ? '#00f3ff' : (i % 3 === 0 ? '#ff0055' : '#ffb800'),
+              size: 14 + Math.floor(Math.random() * 14),
+              blinkRate: 0.02 + Math.random() * 0.05,
+              phase: Math.random() * Math.PI * 2
+            });
+          }
+
+          // 3. Bokeh Light Orbs (Simulating distant defocused headlights, streetlights)
+          for (let i = 0; i < 60; i++) {
+            this.bokehCircles.push({
+              x: Math.random() * w,
+              y: h * 0.2 + Math.random() * (h * 0.78),
+              r: 12 + Math.random() * 38,
+              color: Math.random() > 0.6 ? 'rgba(0, 243, 255, ' : (Math.random() > 0.4 ? 'rgba(255, 0, 85, ' : 'rgba(255, 184, 0, '),
+              alpha: 0.12 + Math.random() * 0.28,
+              pulseSpeed: 0.01 + Math.random() * 0.02,
+              phase: Math.random() * Math.PI * 2
+            });
+          }
+
+          // 4. Flying AVs (Aerodynes gliding through rain)
+          for (let i = 0; i < 4; i++) {
+            this.flyingVehicles.push({
+              x: Math.random() * w,
+              y: h * 0.15 + Math.random() * (h * 0.4),
+              vx: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 1.5),
+              color: Math.random() > 0.5 ? '#00f3ff' : '#ff0055',
+              trailLength: 20 + Math.random() * 40
+            });
+          }
+        }
+
+        update() {
+          const w = state.width;
+          const h = state.height;
+
+          // Flying AV movement
+          for (let av of this.flyingVehicles) {
+            av.x += av.vx;
+            if (av.vx > 0 && av.x > w + 50) av.x = -50;
+            if (av.vx < 0 && av.x < -50) av.x = w + 50;
+          }
+
+          // Lightning timer
+          this.lightningTimer++;
+          if (this.lightningTimer > 400 + Math.random() * 600) {
+            this.lightningTimer = 0;
+            this.lightningFlash = 1.0;
+            audio.playThunderRumble();
+          }
+          if (this.lightningFlash > 0) {
+            this.lightningFlash -= 0.04;
+          }
+        }
+
+        render(ctx) {
+          const w = state.width;
+          const h = state.height;
+
+          ctx.save();
+          ctx.clearRect(0, 0, w, h);
+
+          // Sky Gradient based on active theme
+          const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+          if (state.cityTheme === 'amber') {
+            skyGrad.addColorStop(0, '#100c06');
+            skyGrad.addColorStop(0.6, '#1e1307');
+            skyGrad.addColorStop(1, '#2c1808');
+          } else if (state.cityTheme === 'emerald') {
+            skyGrad.addColorStop(0, '#040d09');
+            skyGrad.addColorStop(0.6, '#081c13');
+            skyGrad.addColorStop(1, '#0e2b1d');
+          } else {
+            // Midnight Cyan-Magenta
+            skyGrad.addColorStop(0, '#05070e');
+            skyGrad.addColorStop(0.5, '#0c1224');
+            skyGrad.addColorStop(1, '#16132b');
+          }
+          ctx.fillStyle = skyGrad;
+          ctx.fillRect(0, 0, w, h);
+
+          // Lightning cold flash
+          if (this.lightningFlash > 0.01) {
+            ctx.fillStyle = `rgba(180, 230, 255, ${this.lightningFlash * 0.45})`;
+            ctx.fillRect(0, 0, w, h);
+          }
+
+          // Render Skyscrapers
+          for (let b of this.skyscrapers) {
+            const bAlpha = 0.4 + b.depth * 0.6;
+            ctx.fillStyle = `rgba(7, 10, 18, ${bAlpha})`;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+
+            // Roof antenna with beacon
+            if (b.hasAntenna) {
+              ctx.strokeStyle = `rgba(15, 23, 42, ${bAlpha})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(b.x + b.w / 2, b.y);
+              ctx.lineTo(b.x + b.w / 2, b.y - 18);
+              ctx.stroke();
+
+              const beaconBlink = Math.sin(Date.now() * 0.005 + b.x) > 0.3;
+              if (beaconBlink) {
+                ctx.fillStyle = '#ff0055';
+                ctx.beginPath();
+                ctx.arc(b.x + b.w / 2, b.y - 18, 2, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+
+            // Windows
+            for (let win of b.windows) {
+              ctx.fillStyle = win.color;
+              ctx.globalAlpha = win.alpha * b.depth;
+              ctx.fillRect(b.x + win.x, b.y + win.y, 4, 6);
+            }
+            ctx.globalAlpha = 1.0;
+          }
+
+          // Render Distant Bokeh Circles (Defocused Streetlights)
+          for (let bk of this.bokehCircles) {
+            bk.phase += bk.pulseSpeed;
+            const curAlpha = bk.alpha * (0.8 + 0.2 * Math.sin(bk.phase));
+            const grad = ctx.createRadialGradient(bk.x, bk.y, 0, bk.x, bk.y, bk.r);
+            grad.addColorStop(0, bk.color + curAlpha + ')');
+            grad.addColorStop(0.6, bk.color + (curAlpha * 0.4) + ')');
+            grad.addColorStop(1, bk.color + '0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(bk.x, bk.y, bk.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Render Neon Kanji Signs
+          ctx.font = 'bold 16px var(--font-hud)';
+          ctx.textAlign = 'center';
+          for (let sign of this.neonSigns) {
+            const flicker = Math.sin(Date.now() * sign.blinkRate + sign.phase);
+            if (flicker > -0.7) {
+              ctx.fillStyle = sign.color;
+              ctx.shadowColor = sign.color;
+              ctx.shadowBlur = 12;
+              ctx.fillText(sign.text, sign.x, sign.y);
+              ctx.shadowBlur = 0;
+            }
+          }
+
+          // Render Flying AVs with light streaks
+          for (let av of this.flyingVehicles) {
+            ctx.strokeStyle = av.color;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = av.color;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(av.x, av.y);
+            ctx.lineTo(av.x - av.vx * av.trailLength, av.y);
+            ctx.stroke();
+
+            // Headlight dot
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(av.x, av.y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.restore();
+        }
+      }
+
+      // --- LAYER 1: CONDENSATION FROSTED GLASS & WIPING SYSTEM ---
+      class CondensationFog {
+        constructor() {
+          this.init();
+        }
+
+        init() {
+          this.resetFog(0.78);
+        }
+
+        resetFog(opacity = 0.78) {
+          const w = state.width;
+          const h = state.height;
+          fogCtx.save();
+          fogCtx.globalCompositeOperation = 'source-over';
+
+          // Frosted glass mist tint
+          fogCtx.fillStyle = `rgba(12, 18, 30, ${opacity})`;
+          fogCtx.fillRect(0, 0, w, h);
+
+          // Add fine procedural mist noise/frost texture
+          const imgData = fogCtx.getImageData(0, 0, w, h);
+          const data = imgData.data;
+          const len = data.length;
+          for (let i = 0; i < len; i += 16) {
+            const grain = (Math.random() - 0.5) * 16;
+            data[i] = Math.min(255, Math.max(0, data[i] + grain));
+            data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
+            data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
+          }
+          fogCtx.putImageData(imgData, 0, 0);
+          fogCtx.restore();
+        }
+
+        // Wipe a streak in the fog (Destination-Out)
+        wipeSegment(x1, y1, x2, y2, radius) {
+          fogCtx.save();
+          fogCtx.globalCompositeOperation = 'destination-out';
+
+          const dist = Math.hypot(x2 - x1, y2 - y1);
+          const steps = Math.max(Math.floor(dist / 4), 1);
+
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const cx = x1 + (x2 - x1) * t;
+            const cy = y1 + (y2 - y1) * t;
+
+            // Feathered radial wipe brush
+            const grad = fogCtx.createRadialGradient(cx, cy, radius * 0.35, cx, cy, radius);
+            grad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
+            grad.addColorStop(0.7, 'rgba(0, 0, 0, 0.85)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            fogCtx.fillStyle = grad;
+            fogCtx.beginPath();
+            fogCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+            fogCtx.fill();
+          }
+
+          fogCtx.restore();
+        }
+
+        // Stamp Text onto Fog (Graffiti)
+        stampGraffiti(text, x, y, fontSize = 38) {
+          fogCtx.save();
+          fogCtx.globalCompositeOperation = 'destination-out';
+          fogCtx.font = `900 ${fontSize}px var(--font-ui)`;
+          fogCtx.textAlign = 'center';
+          fogCtx.textBaseline = 'middle';
+          fogCtx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+          fogCtx.shadowColor = 'rgba(0, 0, 0, 1)';
+          fogCtx.shadowBlur = 8;
+          fogCtx.fillText(text, x, y);
+          fogCtx.restore();
+        }
+
+        // Exhale puff of steam
+        breathePuff() {
+          fogCtx.save();
+          fogCtx.globalCompositeOperation = 'source-over';
+          const w = state.width;
+          const h = state.height;
+          const cx = w / 2;
+          const cy = h / 2;
+          const rx = Math.min(w * 0.4, 300);
+          const ry = Math.min(h * 0.3, 200);
+
+          const grad = fogCtx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
+          grad.addColorStop(0, 'rgba(15, 24, 40, 0.85)');
+          grad.addColorStop(0.6, 'rgba(12, 18, 30, 0.7)');
+          grad.addColorStop(1, 'rgba(12, 18, 30, 0)');
+
+          fogCtx.fillStyle = grad;
+          fogCtx.beginPath();
+          fogCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+          fogCtx.fill();
+          fogCtx.restore();
+        }
+
+        // Slow condensation refogging tick
+        reFogTick() {
+          if (state.refogRate <= 0) return;
+          const alpha = (state.refogRate / 10) * 0.0035;
+          fogCtx.save();
+          fogCtx.globalCompositeOperation = 'source-over';
+          fogCtx.fillStyle = `rgba(12, 18, 30, ${alpha})`;
+          fogCtx.fillRect(0, 0, state.width, state.height);
+          fogCtx.restore();
+        }
+      }
+
+      // --- LAYER 2: RAINDROP SIMULATION & GRAVITY FLUID DYNAMICS ---
+      class RainDrop {
+        constructor(x, y, r) {
+          this.x = x;
+          this.y = y;
+          this.r = r || (1.5 + Math.random() * 3.5);
+          this.mass = this.r * this.r;
+          this.vy = 0;
+          this.vx = 0;
+          this.isMoving = false;
+          this.pauseTimer = Math.floor(Math.random() * 60);
+          this.trail = [];
+          this.wobble = 0;
+        }
+
+        update(gravity, windX, fog) {
+          // Drops over mass threshold start trickling down
+          if (!this.isMoving && this.mass > 18) {
+            this.isMoving = true;
+          }
+
+          if (this.isMoving) {
+            // Stick-slip friction mechanics on glass
+            if (this.pauseTimer > 0) {
+              this.pauseTimer--;
+              this.vy *= 0.8;
+            } else {
+              // Accelerate downwards
+              this.vy += 0.15 + (this.mass * 0.02);
+              this.vx = windX * 0.5 + (Math.sin(this.y * 0.05) * 0.2);
+
+              // Periodic hesitation / stick
+              if (Math.random() < 0.06) {
+                this.pauseTimer = Math.floor(2 + Math.random() * 12);
+              }
+            }
+
+            // Terminal velocity
+            this.vy = Math.min(this.vy, 4.5 + this.mass * 0.1);
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // Liquid wobble
+            this.wobble = Math.sin(this.y * 0.1) * (this.r * 0.25);
+
+            // Wipe a tiny trail in the fog as it trickles!
+            if (Math.random() < 0.8) {
+              fog.wipeSegment(this.x - this.vx, this.y - this.vy, this.x, this.y, this.r * 0.9);
+            }
+
+            // Leave tiny beading trail behind
+            if (Math.random() < 0.15 && this.r > 2.5) {
+              this.r = Math.max(1.5, this.r * 0.96);
+              this.mass = this.r * this.r;
+            }
+          }
+        }
+
+        render(ctx) {
+          ctx.save();
+          const rx = this.r + this.wobble;
+          const ry = this.isMoving ? this.r * 1.3 : this.r;
+
+          // 1. Dark glass meniscus rim
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.beginPath();
+          ctx.ellipse(this.x + 0.5, this.y + 0.8, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 2. Liquid body (Refraction / Cyan water lens tint)
+          const grad = ctx.createRadialGradient(
+            this.x - rx * 0.3, this.y - ry * 0.3, 0,
+            this.x, this.y, rx
+          );
+          grad.addColorStop(0, 'rgba(210, 245, 255, 0.6)');
+          grad.addColorStop(0.5, 'rgba(0, 243, 255, 0.2)');
+          grad.addColorStop(0.85, 'rgba(10, 25, 45, 0.5)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(this.x, this.y, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 3. Specular highlight (Crisp white glint at top-left)
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.beginPath();
+          ctx.ellipse(this.x - rx * 0.35, this.y - ry * 0.35, rx * 0.25, ry * 0.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 4. Subtle bottom ambient light reflection
+          ctx.fillStyle = 'rgba(0, 243, 255, 0.5)';
+          ctx.beginPath();
+          ctx.ellipse(this.x + rx * 0.2, this.y + ry * 0.45, rx * 0.35, ry * 0.15, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
+      }
+
+      class RainFluidSystem {
+        constructor(fogInstance) {
+          this.fog = fogInstance;
+          this.drops = [];
+          this.maxDrops = 400;
+        }
+
+        spawnRain(density) {
+          const spawnChance = (density / 150) * 0.65;
+          if (Math.random() < spawnChance && this.drops.length < this.maxDrops) {
+            const x = Math.random() * state.width;
+            const y = Math.random() * state.height;
+            const r = 1.2 + Math.random() * 3.2;
+            this.drops.push(new RainDrop(x, y, r));
+          }
+        }
+
+        update() {
+          const w = state.width;
+          const h = state.height;
+          const windRad = (state.windAngle * Math.PI) / 180;
+          const windX = Math.sin(windRad) * 1.5;
+
+          // Merge nearby droplets (Surface tension coalescence)
+          for (let i = 0; i < this.drops.length; i++) {
+            const d1 = this.drops[i];
+            if (!d1) continue;
+
+            for (let j = i + 1; j < this.drops.length; j++) {
+              const d2 = this.drops[j];
+              if (!d2) continue;
+
+              const dist = Math.hypot(d2.x - d1.x, d2.y - d1.y);
+              if (dist < d1.r + d2.r) {
+                // Coalesce d2 into d1
+                d1.x = (d1.x * d1.mass + d2.x * d2.mass) / (d1.mass + d2.mass);
+                d1.y = Math.max(d1.y, d2.y);
+                d1.mass += d2.mass;
+                d1.r = Math.min(Math.sqrt(d1.mass), 12);
+                d1.isMoving = true;
+                d1.pauseTimer = 0; // Trigger slide!
+
+                this.drops.splice(j, 1);
+                j--;
+              }
+            }
+          }
+
+          // Update positions & remove offscreen drops
+          for (let i = this.drops.length - 1; i >= 0; i--) {
+            const drop = this.drops[i];
+            drop.update(0.2, windX, this.fog);
+
+            if (drop.y > h + 20 || drop.x < -20 || drop.x > w + 20) {
+              this.drops.splice(i, 1);
+            }
+          }
+
+          state.dropletCount = this.drops.length;
+        }
+
+        render(ctx) {
+          ctx.clearRect(0, 0, state.width, state.height);
+          for (let drop of this.drops) {
+            drop.render(ctx);
+          }
+        }
+
+        clearAll() {
+          this.drops = [];
+          state.dropletCount = 0;
+        }
+      }
+
+      // --- INITIALIZE SUBSYSTEMS ---
+      const city = new CyberCityScape();
+      const fog = new CondensationFog();
+      const rain = new RainFluidSystem(fog);
+
+      // --- RESIZE MANAGEMENT ---
+      function handleResize() {
+        state.width = window.innerWidth;
+        state.height = window.innerHeight;
+        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        const w = state.width;
+        const h = state.height;
+
+        [bgCanvas, fogCanvas, rainCanvas, fxCanvas].forEach(c => {
+          c.width = w;
+          c.height = h;
+          c.style.width = w + 'px';
+          c.style.height = h + 'px';
+        });
+
+        city.init();
+        fog.init();
+        rain.clearAll();
+      }
+
+      window.addEventListener('resize', handleResize);
+      handleResize();
+
+      // --- WIPING INTERACTION & EVENT LISTENERS ---
+      function getPointerPos(e) {
+        if (e.touches && e.touches.length > 0) {
+          return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
+      }
+
+      function startWipe(e) {
+        // Prevent wiping if clicking directly inside interactive drawer/buttons
+        if (e.target.closest('#panel-drawer') || e.target.closest('.hud-header') || e.target.closest('.hud-bottom')) {
+          return;
+        }
+        const pos = getPointerPos(e);
+        state.isWiping = true;
+        state.lastWipeX = pos.x;
+        state.lastWipeY = pos.y;
+        fog.wipeSegment(pos.x, pos.y, pos.x, pos.y, state.brushSize);
+      }
+
+      function moveWipe(e) {
+        if (!state.isWiping) return;
+        const pos = getPointerPos(e);
+        const dist = Math.hypot(pos.x - state.lastWipeX, pos.y - state.lastWipeY);
+
+        if (dist > 2) {
+          fog.wipeSegment(state.lastWipeX, state.lastWipeY, pos.x, pos.y, state.brushSize);
+          audio.playSqueegeeFriction(dist);
+          state.lastWipeX = pos.x;
+          state.lastWipeY = pos.y;
+        }
+      }
+
+      function endWipe() {
+        state.isWiping = false;
+      }
+
+      // Pointer event listeners on stage container
+      stageContainer.addEventListener('mousedown', startWipe);
+      window.addEventListener('mousemove', moveWipe);
+      window.addEventListener('mouseup', endWipe);
+
+      stageContainer.addEventListener('touchstart', (e) => {
+        startWipe(e);
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        if (state.isWiping) {
+          e.preventDefault();
+          moveWipe(e);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', endWipe);
+      window.addEventListener('touchcancel', endWipe);
+
+      // --- TOAST NOTIFICATIONS ---
+      let toastTimer = null;
+      function showToast(text) {
+        if (toastTimer) clearTimeout(toastTimer);
+        toastMsg.textContent = text;
+        toastMsg.classList.add('show');
+        toastTimer = setTimeout(() => {
+          toastMsg.classList.remove('show');
+        }, 2200);
+      }
+
+      // --- WIPER BLADE MECHANICAL ANIMATION ---
+      let isWipingInProgress = false;
+      function triggerMechanicalWiper() {
+        if (isWipingInProgress) return;
+        isWipingInProgress = true;
+        wiperArm.style.display = 'block';
+        showToast('🧽 赛博雨刷已启动...');
+
+        let angle = -70;
+        let direction = 1;
+        const speed = 3.5;
+
+        function animateWiper() {
+          angle += speed * direction;
+          wiperArm.style.transform = `rotate(${angle}deg)`;
+
+          // Clear fog arc under wiper arm
+          const w = state.width;
+          const h = state.height;
+          const rad = (angle * Math.PI) / 180;
+          const armLength = h * 0.85;
+          const tipX = w / 2 + Math.sin(rad) * armLength;
+          const tipY = h - Math.cos(rad) * armLength;
+          fog.wipeSegment(w / 2, h, tipX, tipY, 45);
+
+          // Squeegee squeak sound
+          if (Math.random() < 0.12) {
+            audio.playSqueegeeFriction(15);
+          }
+
+          if (direction === 1 && angle >= 70) {
+            direction = -1;
+          } else if (direction === -1 && angle <= -70) {
+            wiperArm.style.display = 'none';
+            isWipingInProgress = false;
+            showToast('✅ 窗景已清洁完毕');
+            return;
+          }
+
+          requestAnimationFrame(animateWiper);
+        }
+
+        requestAnimationFrame(animateWiper);
+      }
+
+      // --- EXPORT CYBER SNAPSHOT (PNG) ---
+      function exportSnapshot() {
+        const snapCanvas = document.createElement('canvas');
+        snapCanvas.width = state.width;
+        snapCanvas.height = state.height;
+        const sCtx = snapCanvas.getContext('2d');
+
+        // Draw composite layers
+        sCtx.drawImage(bgCanvas, 0, 0);
+        sCtx.drawImage(fogCanvas, 0, 0);
+        sCtx.drawImage(rainCanvas, 0, 0);
+
+        // Cyber Watermark
+        const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        sCtx.font = '14px var(--font-hud)';
+        sCtx.fillStyle = 'rgba(0, 243, 255, 0.85)';
+        sCtx.shadowColor = 'rgba(0, 243, 255, 0.6)';
+        sCtx.shadowBlur = 8;
+        sCtx.fillText(`CYBER RAIN WINDOW 2077 // ${dateStr}`, 24, state.height - 28);
+        sCtx.font = '11px var(--font-hud)';
+        sCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        sCtx.fillText(`LAT 22.31°N 114.16°E // PRECIP: ${state.rainDensity}mm/h // WIND: ${state.windAngle}°`, 24, state.height - 12);
+
+        // Download PNG
+        const link = document.createElement('a');
+        link.download = `cyber-rain-window-${Date.now()}.png`;
+        link.href = snapCanvas.toDataURL('image/png');
+        link.click();
+        showToast('📸 拍立得赛博明信片已成功导出！');
+      }
+
+      // --- UI EVENT BINDINGS ---
+      // Audio Toggle
+      const btnAudio = document.getElementById('btn-audio');
+      const audioIcon = document.getElementById('audio-icon');
+      const audioText = document.getElementById('audio-text');
+
+      function toggleAudio() {
+        state.audioEnabled = !state.audioEnabled;
+        if (state.audioEnabled) {
+          audio.init();
+          audio.setRainActive(true, state.rainDensity);
+          btnAudio.classList.add('active');
+          audioIcon.textContent = '🔊';
+          audioText.textContent = '赛博雨声: ON';
+          showToast('🔊 赛博雨夜环境音效已启动');
+        } else {
+          audio.setRainActive(false);
+          btnAudio.classList.remove('active');
+          audioIcon.textContent = '🔇';
+          audioText.textContent = '赛博雨声: OFF';
+          showToast('🔇 环境音效已静音');
+        }
+      }
+      btnAudio.addEventListener('click', toggleAudio);
+
+      // Drawer Collapse Toggle
+      const btnToggleDrawer = document.getElementById('btn-toggle-drawer');
+      btnToggleDrawer.addEventListener('click', () => {
+        state.drawerOpen = !state.drawerOpen;
+        panelDrawer.classList.toggle('collapsed', !state.drawerOpen);
+        btnToggleDrawer.classList.toggle('active', state.drawerOpen);
+      });
+
+      // Immersive Mode (Hide/Show HUD)
+      const btnImmersive = document.getElementById('btn-immersive-toggle');
+      function toggleImmersive() {
+        state.hudVisible = !state.hudVisible;
+        hudOverlay.classList.toggle('hidden', !state.hudVisible);
+        if (!state.hudVisible) {
+          panelDrawer.classList.add('collapsed');
+          state.drawerOpen = false;
+          btnToggleDrawer.classList.remove('active');
+          showToast('👁️ 沉浸模式：已隐藏控制台 (按 H 或右下角恢复)');
+        } else {
+          showToast('👁️ 交互模式：已恢复控制台');
+        }
+      }
+      btnImmersive.addEventListener('click', toggleImmersive);
+
+      // Snapshot Export
+      document.getElementById('btn-export-shot').addEventListener('click', exportSnapshot);
+
+      // Bottom Bar Buttons
+      document.getElementById('btn-breathe').addEventListener('click', () => {
+        fog.breathePuff();
+        showToast('💨 呼出一口热气，窗户中心已重新凝雾');
+      });
+
+      document.getElementById('btn-wiper-action').addEventListener('click', triggerMechanicalWiper);
+
+      document.getElementById('btn-clear-all').addEventListener('click', () => {
+        fog.resetFog(0.82);
+        rain.clearAll();
+        showToast('❄️ 寒气袭来，全屏已彻底重置结霜');
+      });
+
+      // Brush Mode Selector
+      const brushButtons = document.querySelectorAll('.brush-btn[data-size]');
+      brushButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          brushButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.brushSize = parseInt(btn.dataset.size, 10);
+          state.brushMode = btn.dataset.mode;
+          document.getElementById('val-brush-mode').textContent = `${btn.textContent.trim()}`;
+          showToast(`🖌️ 已切换触控模式: ${btn.textContent.trim()}`);
+        });
+      });
+
+      // Theme Selector
+      const themeButtons = document.querySelectorAll('.brush-btn[data-theme]');
+      themeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          themeButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.cityTheme = btn.dataset.theme;
+          document.getElementById('val-city-theme').textContent = btn.textContent.trim();
+          showToast(`🌃 窗外夜景已切换: ${btn.textContent.trim()}`);
+        });
+      });
+
+      // Sliders
+      const sliderRain = document.getElementById('slider-rain-density');
+      sliderRain.addEventListener('input', (e) => {
+        state.rainDensity = parseInt(e.target.value, 10);
+        let label = '微雨';
+        if (state.rainDensity > 110) label = '赛博台风';
+        else if (state.rainDensity > 60) label = '暴雨';
+        else if (state.rainDensity > 30) label = '中雨';
+        document.getElementById('val-rain-density').textContent = `${label} (${state.rainDensity})`;
+        telemetryPrecip.textContent = `${(state.rainDensity * 0.58).toFixed(1)} mm/h`;
+        if (state.audioEnabled) {
+          audio.setRainActive(true, state.rainDensity);
+        }
+      });
+
+      const sliderWind = document.getElementById('slider-wind-angle');
+      sliderWind.addEventListener('input', (e) => {
+        state.windAngle = parseInt(e.target.value, 10);
+        const dir = state.windAngle > 0 ? `右偏 ${state.windAngle}°` : (state.windAngle < 0 ? `左偏 ${Math.abs(state.windAngle)}°` : '0° (垂直)');
+        document.getElementById('val-wind-angle').textContent = dir;
+        telemetryWind.textContent = `${Math.abs(state.windAngle)}° ${state.windAngle >= 0 ? 'SW' : 'SE'} ${(10 + Math.abs(state.windAngle) * 0.4).toFixed(0)}m/s`;
+      });
+
+      const sliderRefog = document.getElementById('slider-refog-rate');
+      sliderRefog.addEventListener('input', (e) => {
+        state.refogRate = parseInt(e.target.value, 10);
+        let rateText = state.refogRate === 0 ? '停止结霜' : (state.refogRate > 6 ? `极速 (${state.refogRate})` : `温和 (${state.refogRate})`);
+        document.getElementById('val-refog-rate').textContent = rateText;
+      });
+
+      // Graffiti Preset Buttons
+      const presetButtons = document.querySelectorAll('.preset-btn[data-text]');
+      presetButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const text = btn.dataset.text;
+          const x = state.width / 2;
+          const y = state.height * 0.45;
+          fog.stampGraffiti(text, x, y, Math.min(state.width * 0.05, 42));
+          audio.playSqueegeeFriction(25);
+          showToast(`✨ 已在雾气窗上擦出：「${text}」`);
+        });
+      });
+
+      // Custom Graffiti
+      const customInput = document.getElementById('custom-graffiti-text');
+      const btnCustomGraffiti = document.getElementById('btn-custom-graffiti');
+      function applyCustomGraffiti() {
+        const text = customInput.value.trim();
+        if (!text) {
+          showToast('⚠️ 请先输入涂鸦文字');
+          return;
+        }
+        const x = state.width / 2;
+        const y = state.height * 0.5;
+        fog.stampGraffiti(text, x, y, Math.min(state.width * 0.06, 44));
+        audio.playSqueegeeFriction(25);
+        showToast(`✨ 涂鸦印章已盖上：「${text}」`);
+        customInput.value = '';
+      }
+      btnCustomGraffiti.addEventListener('click', applyCustomGraffiti);
+      customInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyCustomGraffiti();
+      });
+
+      // Keyboard Shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const key = e.key.toLowerCase();
+        if (key === 'h') {
+          toggleImmersive();
+        } else if (key === 'm') {
+          toggleAudio();
+        } else if (key === 's') {
+          exportSnapshot();
+        } else if (key === 'w') {
+          triggerMechanicalWiper();
+        } else if (key === 'c') {
+          fog.breathePuff();
+        }
+      });
+
+      // --- MAIN 60 FPS RENDER LOOP ---
+      let lastTime = performance.now();
+      function renderLoop(currentTime) {
+        requestAnimationFrame(renderLoop);
+
+        // Update Background City
+        city.update();
+        city.render(bgCtx);
+
+        // Slow Condensation Refog
+        fog.reFogTick();
+
+        // Spawn and simulate fluid raindrops
+        rain.spawnRain(state.rainDensity);
+        rain.update();
+        rain.render(rainCtx);
+
+        // Update Telemetry Drop Count
+        telemetryDrops.textContent = state.dropletCount;
+      }
+
+      requestAnimationFrame(renderLoop);
+
+    })();
+  </script>
+</body>
+</html>
