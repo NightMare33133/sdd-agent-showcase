@@ -186,7 +186,6 @@
             text-shadow: 0 0 6px var(--neon-gold), 0 0 14px rgba(255, 215, 0, 0.5);
             animation: pulse 2s ease-in-out infinite;
         }
-        }
 
         /* ========== MERIT CYBER GLOW ========== */
         .hit-counter {
@@ -210,11 +209,11 @@
         @keyframes orbBreath {
             0%, 100% { opacity: 0.55; transform: translateY(-50%) scale(1); }
             50%      { opacity: 1;    transform: translateY(-50%) scale(1.35); }
+        }
 
         .merit-glow-orb.gold {
             background: radial-gradient(circle, var(--neon-gold) 0%, var(--neon-orange) 60%, transparent 100%);
             box-shadow: 0 0 8px var(--neon-gold), 0 0 18px var(--neon-orange), 0 0 32px rgba(255, 215, 0, 0.7);
-        }
         }
 
         .counter-flash {
@@ -241,6 +240,8 @@
             text-shadow: 0 0 6px var(--neon-gold), 0 0 14px rgba(255, 215, 0, 0.7);
             animation: meritRise 0.9s ease-out forwards;
             pointer-events: none;
+            white-space: nowrap;
+        }
 
         .gold-merit-float {
             position: absolute;
@@ -712,37 +713,117 @@
     <div class="muyu-container" id="muyuContainer">
         <div class="muyu-wrapper" id="muyuWrapper">
             <svg class="muyu-body" id="muyuBody" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="100" cy="100" r="90" fill="none" stroke="url(#cyanGrad)" stroke-width="2" opacity="0.5"/>
-                <ellipse cx="100" cy="110" rx="70" ry="55" fill="url(#bodyGrad)" stroke="url(#pinkGrad)" stroke-width="2"/>
-                <ellipse cx="100" cy="85" rx="50" ry="25" fill="url(#domeGrad)"/>
-                <circle cx="100" cy="100" r="20" fill="url(#centerGrad)" opacity="0.8"/>
-                <circle cx="100" cy="100" r="12" fill="var(--neon-cyan)" opacity="0.9">
-                    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
-                </circle>
-                <line x1="40" y1="100" x2="60" y2="100" stroke="var(--neon-pink)" stroke-width="1" opacity="0.5"/>
-                <line x1="140" y1="100" x2="160" y2="100" stroke="var(--neon-pink)" stroke-width="1" opacity="0.5"/>
                 <defs>
-                    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="var(--neon-cyan)"/>
-                        <stop offset="100%" stop-color="var(--neon-green)"/>
-                    </linearGradient>
-                    <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="var(--neon-pink)"/>
-                        <stop offset="100%" stop-color="var(--neon-purple)"/>
+                    <linearGradient id="cyberBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#00f5ff"/>
+                        <stop offset="50%" stop-color="#ff00ff"/>
+                        <stop offset="100%" stop-color="#00ff88"/>
                     </linearGradient>
                     <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stop-color="#1a1a2e"/>
-                        <stop offset="100%" stop-color="#0d0d15"/>
+                        <stop offset="0%" stop-color="#1e1e32"/>
+                        <stop offset="50%" stop-color="#12121f"/>
+                        <stop offset="100%" stop-color="#08080f"/>
                     </linearGradient>
-                    <linearGradient id="domeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stop-color="#252540"/>
-                        <stop offset="100%" stop-color="#15152a"/>
+                    <linearGradient id="mouthGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="rgba(0,245,255,0.2)"/>
+                        <stop offset="50%" stop-color="rgba(0,245,255,0.95)"/>
+                        <stop offset="100%" stop-color="rgba(0,245,255,0.2)"/>
                     </linearGradient>
-                    <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stop-color="rgba(0,245,255,0.3)"/>
-                        <stop offset="100%" stop-color="rgba(0,245,255,0)"/>
+                    <radialGradient id="corePulse" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#00f5ff" stop-opacity="1"/>
+                        <stop offset="40%" stop-color="#8b00ff" stop-opacity="0.6"/>
+                        <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
                     </radialGradient>
+                    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="3" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
                 </defs>
+
+                <!-- Background Tech Rings -->
+                <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(0,245,255,0.2)" stroke-width="1" stroke-dasharray="6 10"/>
+                <circle cx="100" cy="100" r="86" fill="none" stroke="rgba(255,0,255,0.15)" stroke-width="1" stroke-dasharray="40 20"/>
+
+                <!-- HUD Alignment Marks -->
+                <line x1="100" y1="5" x2="100" y2="12" stroke="#00f5ff" stroke-width="2" opacity="0.6"/>
+                <line x1="100" y1="188" x2="100" y2="195" stroke="#00f5ff" stroke-width="2" opacity="0.6"/>
+                <line x1="5" y1="100" x2="12" y2="100" stroke="#00f5ff" stroke-width="2" opacity="0.6"/>
+                <line x1="188" y1="100" x2="195" y2="100" stroke="#00f5ff" stroke-width="2" opacity="0.6"/>
+
+                <!-- Wooden Fish Main Carapace -->
+                <path d="M 100 28 C 142 28, 172 58, 172 105 C 172 142, 142 166, 100 166 C 58 166, 28 142, 28 105 C 28 58, 58 28, 100 28 Z" 
+                      fill="url(#bodyGrad)" 
+                      stroke="url(#cyberBorder)" 
+                      stroke-width="2.5"/>
+
+                <!-- Dorsal Spine / Tech Crest -->
+                <path d="M 88 32 L 100 18 L 112 32 L 108 48 L 92 48 Z" 
+                      fill="#181828" 
+                      stroke="#00f5ff" 
+                      stroke-width="1.5"/>
+                <line x1="100" y1="20" x2="100" y2="44" stroke="#ff00ff" stroke-width="1.5" opacity="0.8"/>
+
+                <!-- Acoustic Slit / Carved Mouth (木鱼音裂/鱼嘴) -->
+                <path d="M 45 116 Q 100 136 155 116 Q 135 106 100 110 Q 65 106 45 116 Z" 
+                      fill="#0a0a14" 
+                      stroke="rgba(255,0,255,0.6)" 
+                      stroke-width="1.2"/>
+                <path d="M 52 115 Q 100 133 148 115" 
+                      fill="none" 
+                      stroke="url(#mouthGlow)" 
+                      stroke-width="3" 
+                      stroke-linecap="round" 
+                      filter="url(#neonGlow)"/>
+                <path d="M 65 114 Q 100 128 135 114" 
+                      fill="none" 
+                      stroke="#ffffff" 
+                      stroke-width="1" 
+                      stroke-linecap="round" 
+                      opacity="0.9"/>
+
+                <!-- Panel Inset Lines -->
+                <path d="M 42 75 C 55 52, 75 42, 100 42 C 125 42, 145 52, 158 75" 
+                      fill="none" 
+                      stroke="rgba(0,245,255,0.35)" 
+                      stroke-width="1.2" 
+                      stroke-dasharray="12 4"/>
+                <path d="M 40 130 C 56 150, 76 156, 100 156 C 124 156, 144 150, 160 130" 
+                      fill="none" 
+                      stroke="rgba(0,255,136,0.25)" 
+                      stroke-width="1"/>
+
+                <!-- Left & Right Sensory Nodes (木鱼双眼) -->
+                <g class="muyu-eye-left">
+                    <circle cx="62" cy="78" r="13" fill="#0f0f1c" stroke="rgba(0,245,255,0.4)" stroke-width="1.5"/>
+                    <circle cx="62" cy="78" r="7" fill="none" stroke="rgba(255,0,255,0.5)" stroke-width="1" stroke-dasharray="3 3"/>
+                    <circle cx="62" cy="78" r="3.5" fill="#00ff88" filter="url(#neonGlow)"/>
+                </g>
+                <g class="muyu-eye-right">
+                    <circle cx="138" cy="78" r="13" fill="#0f0f1c" stroke="rgba(0,245,255,0.4)" stroke-width="1.5"/>
+                    <circle cx="138" cy="78" r="7" fill="none" stroke="rgba(255,0,255,0.5)" stroke-width="1" stroke-dasharray="3 3"/>
+                    <circle cx="138" cy="78" r="3.5" fill="#00ff88" filter="url(#neonGlow)"/>
+                </g>
+
+                <!-- Circuit Bus Lines -->
+                <path d="M 62 91 L 75 101 L 90 101" fill="none" stroke="#00f5ff" stroke-width="1.2" opacity="0.7"/>
+                <circle cx="90" cy="101" r="2" fill="#00f5ff"/>
+                <path d="M 138 91 L 125 101 L 110 101" fill="none" stroke="#00f5ff" stroke-width="1.2" opacity="0.7"/>
+                <circle cx="110" cy="101" r="2" fill="#00f5ff"/>
+
+                <!-- Center Resonant Core (功德/声学核心) -->
+                <circle cx="100" cy="80" r="16" fill="url(#corePulse)"/>
+                <polygon points="100,68 110,75 110,85 100,92 90,85 90,75" 
+                         fill="none" 
+                         stroke="#00f5ff" 
+                         stroke-width="1.5" 
+                         opacity="0.85"/>
+                <circle cx="100" cy="80" r="5" fill="#00f5ff">
+                    <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+                </circle>
             </svg>
             <div id="ringContainer"></div>
         </div>
