@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<meta name="description" content="NEXUS://DEEP-SPACE — 赛博深空黑客终端与雷达扫描仪 · 单文件 · 零依赖 · 离线可用">
+<title>NEXUS://DEEP-SPACE · 赛博深空终端与雷达</title>
+<style>
+:root{
+  --font-mono:ui-monospace,"Cascadia Code","JetBrains Mono","Fira Code",Consolas,"Courier New","Noto Sans Mono CJK SC",monospace;
+}
+html[data-theme="dark"]{
+  --bg-0:#030608;--bg-1:#050b10;
+  --panel-bg:rgba(6,14,18,.78);
+  --panel-border:#123c3c;
+  --grid:rgba(0,255,170,.05);
+  --neon:#00ff9c;--neon-soft:rgba(0,255,156,.13);
+  --cyan:#22d3ee;--amber:#fbbf24;--red:#ff4d6d;--violet:#a78bfa;--blue:#60a5fa;
+  --text:#c9f7e2;--text-dim:#5f9381;--text-faint:#3c6457;
+  --glow:0 0 10px rgba(0,255,156,.4),0 0 26px rgba(0,255,156,.12);
+  --glow-cyan:0 0 10px rgba(34,211,238,.35);
+  --scroll:#0e4a3a;
+  --scan-op:.55;
+}
+html[data-theme="light"]{
+  --bg-0:#dfe9e2;--bg-1:#edf4ee;
+  --panel-bg:rgba(255,255,255,.87);
+  --panel-border:#9cc2b1;
+  --grid:rgba(0,120,90,.09);
+  --neon:#00805f;--neon-soft:rgba(0,128,95,.12);
+  --cyan:#0e7490;--amber:#b45309;--red:#be123c;--violet:#6d28d9;--blue:#1d4ed8;
+  --text:#0c2b21;--text-dim:#48705f;--text-faint:#7c9c8d;
+  --glow:0 0 8px rgba(0,128,95,.22);
+  --glow-cyan:0 0 8px rgba(14,116,144,.22);
+  --scroll:#9cc2b1;
+  --scan-op:.30;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--font-mono);color:var(--text);overflow:hidden;
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+    radial-gradient(1100px 700px at 72% -8%,var(--neon-soft),transparent 60%),
+    var(--bg-1);
+  background-size:34px 34px,34px 34px,100% 100%,100% 100%;
+  transition:background .4s ease,color .4s ease;
+}
+[hidden]{display:none!important}
+#matrixCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
+html[data-theme="light"] #matrixCanvas{opacity:.4}
+#crtOverlay{
+  position:fixed;inset:0;z-index:60;pointer-events:none;opacity:var(--scan-op);
+  background:
+    repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 1px,transparent 3px),
+    radial-gradient(120% 92% at 50% 50%,transparent 56%,rgba(0,0,0,.42) 100%);
+  animation:crtFlicker 9s linear infinite;
+}
+html[data-theme="light"] #crtOverlay{
+  background:
+    repeating-linear-gradient(0deg,rgba(0,60,40,.05) 0,rgba(0,60,40,.05) 1px,transparent 1px,transparent 3px),
+    radial-gradient(120% 92% at 50% 50%,transparent 60%,rgba(20,60,45,.18) 100%);
+}
+@keyframes crtFlicker{0%,100%{opacity:var(--scan-op)}50%{opacity:calc(var(--scan-op)*.82)}}
+#bootScreen{
+  position:fixed;inset:0;z-index:100;background:var(--bg-0);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .6s ease,visibility .6s;
+}
+#bootScreen.boot-off{opacity:0;visibility:hidden}
+.boot-box{width:min(720px,92vw)}
+#bootLogo{
+  margin:0 0 14px;font-size:clamp(9px,1.9vw,15px);line-height:1.2;color:var(--neon);
+  text-shadow:var(--glow);white-space:pre;overflow:hidden;
+}
+#bootLines{height:216px;overflow:hidden;font-size:12.5px;line-height:1.7;color:var(--text-dim);white-space:pre-wrap}
+#bootLines div:nth-last-child(-n+3){color:var(--text)}
+#bootBarWrap{margin-top:16px;height:12px;border:1px solid var(--panel-border);position:relative;background:rgba(0,0,0,.25)}
+#bootBarFill{height:100%;width:0%;background:linear-gradient(90deg,var(--neon-soft),var(--neon));box-shadow:var(--glow);transition:width .3s linear}
+#bootBarPct{position:absolute;right:6px;top:-19px;font-size:11px;color:var(--neon)}
+#bootHint{margin-top:10px;font-size:11px;color:var(--text-faint);animation:blink 1.4s infinite}
+#app{
+  position:relative;z-index:1;height:100vh;height:100dvh;
+  display:grid;grid-template-columns:minmax(360px,1.12fr) minmax(320px,1fr);
+  grid-template-rows:auto minmax(0,1fr) auto;gap:10px;padding:10px;
+  max-width:1720px;margin:0 auto;
+}
+#topbar{grid-column:1/3;grid-row:1;flex-direction:row;align-items:center;gap:14px;padding:10px 14px}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand-mark{color:var(--neon);text-shadow:var(--glow);font-size:15px}
+.brand-title{margin:0;font-size:17px;letter-spacing:2px;color:var(--neon);text-shadow:var(--glow);white-space:nowrap}
+.brand-title:hover{animation:glitch .18s 2}
+.brand-sub{font-size:11px;color:var(--text-faint);letter-spacing:1px;white-space:nowrap}
+.leds{display:flex;gap:12px;margin-left:auto}
+.led{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-faint);letter-spacing:1px}
+.led i{width:7px;height:7px;border-radius:50%;background:var(--text-faint)}
+.led.on i{background:var(--neon);box-shadow:0 0 8px var(--neon);animation:ledPulse 2.2s infinite}
+.led.on.warn i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+@keyframes ledPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+#clockTime{font-size:17px;color:var(--cyan);text-shadow:var(--glow-cyan);font-variant-numeric:tabular-nums}
+#clockDate{font-size:10px;color:var(--text-faint)}
+.btn{
+  background:transparent;border:1px solid var(--panel-border);color:var(--text-dim);
+  font:11px var(--font-mono);letter-spacing:1px;padding:5px 11px;border-radius:4px;cursor:pointer;
+  transition:all .15s ease;flex:none;
+}
+.btn:hover{color:var(--neon);border-color:var(--neon);box-shadow:var(--glow)}
+.btn:active{transform:translateY(1px)}
+.btn-off{opacity:.45;text-decoration:line-through}
+.panel{
+  position:relative;display:flex;flex-direction:column;min-height:0;
+  background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:10px;
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  box-shadow:0 0 0 1px rgba(0,0,0,.25),0 12px 32px rgba(0,0,0,.35);
+}
+html[data-theme="light"] .panel{box-shadow:0 10px 26px rgba(30,60,50,.12)}
+.panel::before{content:'';position:absolute;top:-1px;left:-1px;width:14px;height:14px;border-top:2px solid var(--neon);border-left:2px solid var(--neon);border-radius:10px 0 0 0;opacity:.9;pointer-events:none}
+.panel::after{content:'';position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;border-bottom:2px solid var(--neon);border-right:2px solid var(--neon);border-radius:0 0 10px 0;opacity:.9;pointer-events:none}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;
+  padding:7px 12px;border-bottom:1px dashed var(--panel-border);
+  font-size:11px;letter-spacing:1.5px;color:var(--text-dim);
+}
+.panel-head.mini{padding:5px 9px;letter-spacing:1px}
+.ph-title{color:var(--neon);text-shadow:var(--glow);font-weight:700}
+.ph-meta{color:var(--text-faint);font-size:10.5px;letter-spacing:1px}
+.ph-val{font-size:11px;color:var(--text);font-variant-numeric:tabular-nums}
+#termPanel{grid-column:1;grid-row:2;min-height:0}
+#termOut{
+  flex:1;overflow-y:auto;padding:10px 12px;font-size:13px;line-height:1.6;min-height:0;
+  scrollbar-width:thin;scrollbar-color:var(--scroll) transparent;
+}
+#termOut::-webkit-scrollbar{width:8px}
+#termOut::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:4px}
+#termOut::-webkit-scrollbar-track{background:transparent}
+.t-line{white-space:pre-wrap;word-break:break-word;min-height:1.2em}
+.t-logo{white-space:pre;font-size:10px;line-height:1.2;color:var(--neon);text-shadow:var(--glow)}
+.t-prompt{color:var(--neon);font-weight:700;text-shadow:var(--glow)}
+.t-cmd{color:var(--text)}
+.t-ok{color:var(--neon)}
+.t-err{color:var(--red)}
+.t-warn{color:var(--amber)}
+.t-info{color:var(--cyan)}
+.t-accent{color:var(--violet)}
+.t-dim{color:var(--text-dim)}
+.t-border{color:var(--text-faint)}
+.type-friendly{color:var(--cyan)}
+.type-neutral{color:var(--amber)}
+.type-unknown{color:var(--violet)}
+.type-hostile{color:var(--red)}
+#termForm{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px dashed var(--panel-border);flex:none}
+#termForm.busy{opacity:.55}
+.prompt{color:var(--neon);font-weight:700;text-shadow:var(--glow);white-space:nowrap;font-size:13px}
+#termInput{flex:1;background:transparent;border:none;outline:none;color:var(--text);font:inherit;caret-color:var(--neon);min-width:0}
+#termInput::placeholder{color:var(--text-faint)}
+#termInput:disabled{opacity:.7}
+.caret-hint{color:var(--neon);animation:blink 1.1s steps(2) infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+#rightCol{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:10px;min-height:0}
+#radarPanel{flex:1.35 1 0;min-height:200px}
+#radarWrap{position:relative;flex:1;min-height:0;margin:6px}
+#radarCanvas{width:100%;height:100%;display:block;cursor:crosshair}
+#radarHud{
+  position:absolute;top:6px;left:10px;right:10px;display:flex;justify-content:space-between;
+  font-size:10.5px;color:var(--text-dim);pointer-events:none;text-shadow:0 0 6px rgba(0,0,0,.8);
+}
+.target-info{
+  display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;flex:none;min-height:32px;
+  padding:8px 12px;border-top:1px dashed var(--panel-border);font-size:11.5px;color:var(--text-dim);
+}
+.target-info.locked{color:var(--text)}
+.ti-id{font-weight:700}
+#statsRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;flex:none;height:112px}
+.stat{padding:0}
+.stat canvas{flex:1;min-height:0;width:calc(100% - 8px);margin:0 4px 4px;display:block}
+#logPanel{flex:1 1 0;min-height:140px}
+#logOut{
+  flex:1;overflow-y:auto;padding:8px 10px;font-size:11.5px;line-height:1.7;min-height:0;
+  scrollbar-width:thin;scrollbar-color:var(--scroll) transparent;
+}
+#logOut::-webkit-scrollbar{width:8px}
+#logOut::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:4px}
+.log-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-time{color:var(--text-faint);margin-right:8px}
+.log-lv{margin-right:8px;font-weight:700}
+.lv-ok{color:var(--neon)}
+.lv-warn{color:var(--amber)}
+.lv-crit{color:var(--red);animation:blink 1s steps(2) 3}
+.log-mod{color:var(--cyan);margin-right:8px}
+.log-msg{color:var(--text-dim)}
+#statusbar{grid-column:1/3;grid-row:3;flex-direction:row;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:7px 14px;font-size:11px;color:var(--text-dim)}
+#statusbar b{color:var(--text);font-weight:600}
+#statusbar .blink{color:var(--neon);margin-left:auto}
+.blink{animation:blink 1.6s infinite}
+.glitching #app{animation:glitch .12s 5}
+@keyframes glitch{
+  0%{transform:translate(0)}
+  25%{transform:translate(-3px,2px) skewX(2deg)}
+  50%{transform:translate(2px,-1px)}
+  75%{transform:translate(-1px,1px) skewX(-2deg)}
+  100%{transform:translate(0)}
+}
+:focus-visible{outline:1px dashed var(--neon);outline-offset:2px}
+::selection{background:var(--neon-soft);color:var(--text)}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}
+}
+@media (max-width:980px){
+  body{overflow:auto}
+  #app{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:none}
+  #topbar{grid-column:1;grid-row:auto;flex-wrap:wrap}
+  #termPanel{grid-column:1;grid-row:auto;height:58vh}
+  #rightCol{grid-column:1;grid-row:auto}
+  #radarPanel{flex:none;min-height:340px}
+  #statsRow{height:100px}
+  #logPanel{flex:none;height:34vh}
+  #statusbar{grid-column:1;grid-row:auto}
+  .brand-sub,.leds{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="matrixCanvas" aria-hidden="true"></canvas>
+<div id="crtOverlay" aria-hidden="true"></div>
+
+<div id="bootScreen" role="status" aria-label="系统引导中">
+  <div class="boot-box">
+    <pre id="bootLogo"></pre>
+    <div id="bootLines"></div>
+    <div id="bootBarWrap"><div id="bootBarFill"></div><span id="bootBarPct">0%</span></div>
+    <div id="bootHint">▸ 点击任意处 / 按任意键 跳过引导</div>
+  </div>
+</div>
+
+<main id="app" hidden>
+  <header id="topbar" class="panel">
+    <div class="brand">
+      <span class="brand-mark">◢◤</span>
+      <h1 class="brand-title">NEXUS://DEEP-SPACE</h1>
+      <span class="brand-sub">赛博深空作战终端 v9.7.2</span>
+    </div>
+    <div class="leds" aria-hidden="true">
+      <span class="led on"><i></i>LINK</span>
+      <span class="led on warn"><i></i>SEC</span>
+      <span class="led on"><i></i>PWR</span>
+    </div>
+    <div class="clock"><span id="clockTime">--:--:--</span><span id="clockDate">INIT...</span></div>
+    <button id="themeBtn" class="btn" type="button" title="切换深空/昼间主题">◐ 主题</button>
+    <button id="fxBtn" class="btn" type="button" title="CRT 扫描线特效">✦ 特效</button>
+    <button id="matrixBtn" class="btn" type="button" title="数据雨背景">⌗ 数据雨</button>
+  </header>
+
+  <section id="termPanel" class="panel">
+    <div class="panel-head"><span class="ph-title">▍TERMINAL // 交互终端</span><span class="ph-meta">TTY0 · nexus-sh 9.7</span></div>
+    <div id="termOut"></div>
+    <form id="termForm" autocomplete="off">
+      <label class="prompt" for="termInput">root@nexus-9:~$</label>
+      <input id="termInput" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" enterkeyhint="send" aria-label="终端命令输入" placeholder="输入 help — Tab 补全 · ↑ 历史">
+      <span class="caret-hint" aria-hidden="true">▊</span>
+    </form>
+  </section>
+
+  <aside id="rightCol">
+    <section id="radarPanel" class="panel">
+      <div class="panel-head"><span class="ph-title">▍RADAR // 深空雷达阵列</span><span class="ph-meta" id="radarMeta">被动扫描 · 半径 400 ls</span></div>
+      <div id="radarWrap">
+        <canvas id="radarCanvas" role="img" aria-label="深空雷达扫描显示器, 点击光点可锁定目标"></canvas>
+        <div id="radarHud" aria-hidden="true"><span id="radarSweepDeg">000°</span><span id="radarCount">目标 0</span></div>
+      </div>
+      <div id="targetInfo">未锁定目标 — 点击雷达光点或输入 lock &lt;编号&gt;</div>
+    </section>
+
+    <section id="statsRow">
+      <div class="stat panel"><div class="panel-head mini"><span class="ph-title">CPU</span><span class="ph-val" id="cpuVal">--%</span></div><canvas id="cpuCanvas" aria-hidden="true"></canvas></div>
+      <div class="stat panel"><div class="panel-head mini"><span class="ph-title">MEM</span><span class="ph-val" id="memVal">--%</span></div><canvas id="memCanvas" aria-hidden="true"></canvas></div>
+      <div class="stat panel"><div class="panel-head mini"><span class="ph-title">NET</span><span class="ph-val" id="netVal">-- KB/s</span></div><canvas id="netCanvas" aria-hidden="true"></canvas></div>
+    </section>
+
+    <section id="logPanel" class="panel">
+      <div class="panel-head"><span class="ph-title">▍SYSLOG // 事件流</span><span class="ph-meta">AUTO-FEED ▸ 悬停暂停</span></div>
+      <div id="logOut" role="log"></div>
+    </section>
+  </aside>
+
+  <footer id="statusbar" class="panel">
+    <span>◉ NODE <b>NEXUS-9 / ORBIT-K7</b></span>
+    <span>⇅ UPLINK <b>2.4 Tb/s</b></span>
+    <span>⛨ <b>AES-256-GCM</b></span>
+    <span>IP <b id="sbIp">10.13.37.42</b></span>
+    <span>FPS <b id="sbFps">--</b></span>
+    <span class="blink">● SECURE CHANNEL</span>
+  </footer>
+</main>
+
+<noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#030608;color:#00ff9c;font-family:monospace;z-index:999">需要启用 JavaScript 才能启动 NEXUS 终端</div></noscript>
+<script>
+'use strict';
+/* ============================================================
+ * NEXUS://DEEP-SPACE — 赛博深空黑客终端与雷达扫描仪
+ * 单文件 · 零外部依赖 · 原生 Vanilla JS
+ * 安全基线:
+ *   1) 用户输入仅经 createTextNode/textContent 渲染 (XSS 免疫通道)
+ *   2) 全程零 innerHTML / 零 eval / 零 new Function / 零外链
+ *   3) CSP meta 兜底 + localStorage 读写全部 try/catch 加固
+ * ============================================================ */
+
+/* ---------- 0. 纯函数工具 (TDD 覆盖区) ---------- */
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+function rand(a, b) { return a + Math.random() * (b - a); }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+function pad(n, w) { return String(n).padStart(w || 2, '0'); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+/** XSS 消毒基元 (纵深防御 + 对外导出; 常规渲染统一走 textNode 通道) */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+/** 命令行 token 化: 支持成对单/双引号包裹含空格参数 */
+function tokenize(line) {
+  var tokens = [], cur = '', quote = null;
+  var src = String(line);
+  for (var i = 0; i < src.length; i++) {
+    var ch = src[i];
+    if (quote) { if (ch === quote) quote = null; else cur += ch; }
+    else if (ch === '"' || ch === "'") quote = ch;
+    else if (/\s/.test(ch)) { if (cur) { tokens.push(cur); cur = ''; } }
+    else cur += ch;
+  }
+  if (cur) tokens.push(cur);
+  return tokens;
+}
+
+/** 运行时长 → HH:MM:SS */
+function fmtUptime(ms) {
+  var s = Math.max(0, Math.floor(ms / 1000));
+  return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60);
+}
+
+/** IPv4 严格校验 (每段 0-255) */
+function isValidIp(s) {
+  var parts = String(s).split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(function (p) { return /^\d{1,3}$/.test(p) && Number(p) <= 255; });
+}
+
+/** ASCII 进度条: bar(50) → '██████████░░░░░░░░░░' */
+function bar(v, width) {
+  width = width || 20;
+  var filled = clamp(Math.round((v / 100) * width), 0, width);
+  return '█'.repeat(filled) + '░'.repeat(width - filled);
+}
+
+const TAU = Math.PI * 2;
+const MONO = 'ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", "Noto Sans Mono CJK SC", monospace';
+const BOOT_TS = Date.now();
+const REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const $ = function (id) { return document.getElementById(id); };
+
+/* ---------- 1. 全局状态 ---------- */
+const State = {
+  theme: 'dark', matrixOn: true, fxOn: true,
+  busy: false, history: [], histIdx: 0,
+  targets: [], selected: null, deepScanUntil: 0, tgtSeq: 0,
+};
+
+/* ---------- 2. 主题 (CSS Variables 双主题) ---------- */
+const ThemeColors = {};
+function refreshThemeColors() {
+  var cs = getComputedStyle(document.documentElement);
+  function g(n) { return cs.getPropertyValue(n).trim(); }
+  ThemeColors.neon = g('--neon'); ThemeColors.cyan = g('--cyan');
+  ThemeColors.amber = g('--amber'); ThemeColors.red = g('--red');
+  ThemeColors.violet = g('--violet'); ThemeColors.blue = g('--blue');
+  ThemeColors.text = g('--text'); ThemeColors.dim = g('--text-dim');
+  ThemeColors.faint = g('--text-faint'); ThemeColors.border = g('--panel-border');
+  ThemeColors.gridC = g('--grid'); ThemeColors.bg0 = g('--bg-0');
+  ThemeColors.bgTrail = State.theme === 'dark' ? 'rgba(3,6,8,0.10)' : 'rgba(223,233,226,0.14)';
+}
+function applyTheme(t) {
+  State.theme = t === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', State.theme);
+  try { localStorage.setItem('nexus-theme', State.theme); } catch (e) { /* file:// 或隐私模式兜底 */ }
+  refreshThemeColors();
+}
+function toggleTheme(t) { applyTheme(t !== undefined ? t : (State.theme === 'dark' ? 'light' : 'dark')); }
+function toggleFx(on) {
+  State.fxOn = on === undefined ? !State.fxOn : !!on;
+  $('crtOverlay').style.display = State.fxOn ? '' : 'none';
+  $('fxBtn').classList.toggle('btn-off', !State.fxOn);
+  try { localStorage.setItem('nexus-fx', State.fxOn ? '1' : '0'); } catch (e) {}
+}
+function toggleMatrix(on) {
+  State.matrixOn = on === undefined ? !State.matrixOn : !!on;
+  $('matrixBtn').classList.toggle('btn-off', !State.matrixOn);
+  if (!State.matrixOn) Matrix.clearAll();
+  try { localStorage.setItem('nexus-matrix', State.matrixOn ? '1' : '0'); } catch (e) {}
+}
+
+/* ---------- 3. 数据雨 (背景 Canvas) ---------- */
+const Matrix = (function () {
+  const cv = $('matrixCanvas'), ctx = cv.getContext('2d');
+  const GLYPHS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789ABCDEF<>|#$%&@=*光子数据网络侵入协议量子深空星舰'.split('');
+  const FS = 15;
+  let W = 0, H = 0, cols = 0, drops = [];
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W; cv.height = H;
+    cols = Math.ceil(W / FS);
+    drops = [];
+    for (var i = 0; i < cols; i++) drops.push(randInt(-40, 0));
+    if (!State.matrixOn) return;
+    ctx.fillStyle = ThemeColors.bg0 || '#030608';
+    ctx.fillRect(0, 0, W, H);
+  }
+  function clearAll() { ctx.clearRect(0, 0, W, H); }
+  function step() {
+    if (!State.matrixOn) return;
+    ctx.fillStyle = ThemeColors.bgTrail || 'rgba(3,6,8,0.10)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = FS + 'px ' + MONO;
+    for (var i = 0; i < cols; i++) {
+      var y = drops[i] * FS;
+      ctx.fillStyle = ThemeColors.neon || '#00ff9c';
+      ctx.globalAlpha = Math.random() < 0.06 ? 0.95 : 0.55;
+      ctx.fillText(GLYPHS[(Math.random() * GLYPHS.length) | 0], i * FS, y);
+      if (y > H && Math.random() > 0.972) drops[i] = randInt(-30, 0); else drops[i] += 1;
+    }
+    ctx.globalAlpha = 1;
+  }
+  return { resize: resize, step: step, clearAll: clearAll };
+})();
+
+/* ---------- 4. 终端核心 ---------- */
+const termOut = $('termOut'), termInput = $('termInput'), termForm = $('termForm');
+
+function lineEl(cls) {
+  var d = document.createElement('div');
+  d.className = 't-line' + (cls ? ' ' + cls : '');
+  return d;
+}
+function scrollTerm() { termOut.scrollTop = termOut.scrollHeight; }
+/** 唯一输出通道: 全部 textNode — 用户数据零 HTML 解析, XSS 免疫 */
+function printSeg(segs, cls) {
+  var line = lineEl(cls);
+  for (var i = 0; i < segs.length; i++) {
+    var span = document.createElement('span');
+    if (segs[i].cls) span.className = segs[i].cls;
+    span.appendChild(document.createTextNode(String(segs[i].text)));
+    line.appendChild(span);
+  }
+  termOut.appendChild(line);
+  while (termOut.children.length > 600) termOut.removeChild(termOut.firstChild);
+  scrollTerm();
+  return line;
+}
+function termPrint(text, cls) { return printSeg([{ text: text, cls: cls }]); }
+function printErr(t) { termPrint(t, 't-err'); }
+function setInputEnabled(on) {
+  termInput.disabled = !on;
+  termForm.classList.toggle('busy', !on);
+}
+
+/* ---------- 5. 指令集 ---------- */
+const Commands = {
+  help: {
+    desc: '显示指令手册或指定指令详情', usage: 'help [指令]',
+    fn: function (args) {
+      if (args.length) {
+        var key = args[0].toLowerCase();
+        var c = Commands[key] || Commands[ALIAS[key]];
+        if (!c) { printErr('没有指令: ' + args[0]); return; }
+        printSeg([{ text: key.padEnd(10), cls: 't-info' }, { text: c.usage, cls: 't-accent' }]);
+        termPrint('  ' + c.desc, 't-dim');
+        return;
+      }
+      termPrint('┌─ NEXUS-9 指令手册 ───────────────────────────', 't-border');
+      Object.keys(Commands).forEach(function (name) {
+        var c = Commands[name];
+        printSeg([
+          { text: '  ' + name.padEnd(10), cls: 't-info' },
+          { text: c.desc, cls: '' },
+          { text: '  ' + c.usage, cls: 't-dim' },
+        ]);
+      });
+      termPrint('└──────────────────────────────────────────────', 't-border');
+      termPrint('提示: Tab 补全 · ↑/↓ 历史 · 中文别名可用 (帮助/扫描/破解…)', 't-dim');
+    },
+  },
+  clear: { desc: '清空终端输出', usage: 'clear', fn: function () { termOut.textContent = ''; } },
+  banner: { desc: '显示 NEXUS 徽标', usage: 'banner', fn: function () {
+    printSeg([{ text: BOOT_LOGO, cls: 't-logo' }]);
+    termPrint('  赛博深空作战终端 v9.7.2 · 单文件 · 零依赖 · ORBITAL DYNAMICS 2187', 't-dim');
+  } },
+  scan: {
+    desc: '执行扇区扫描 (deep=深层脉冲成像)', usage: 'scan [deep]',
+    fn: async function (args) {
+      var deep = (args[0] || '').toLowerCase() === 'deep' || args[0] === '深度';
+      if (deep) {
+        termPrint('▸ DEEP SCAN 启动 — 阵列增益 +18dB, 脉冲重复频率 ×2.6', 't-warn');
+        State.deepScanUntil = performance.now() + 5200;
+        await sleep(5200);
+        var ghosts = randInt(1, 3);
+        for (var i = 0; i < ghosts; i++) Radar.spawn(true);
+        termPrint('▸ DEEP SCAN 完成 — 相位融合成像', 't-ok');
+        termPrint('  新增回波 ' + ghosts + ' 个, 已并入目标表 (targets 查看)', 't-dim');
+        Log.push('SENSORS', 'warn', '深空扫描完成, 新增回波 ' + ghosts);
+      } else {
+        termPrint('▸ 常规扇区扫描 — 360° 全向波束', 't-info');
+        Radar.boost(2400);
+        await sleep(2400);
+        termPrint('▸ 扫描完成 — 编目目标 ' + State.targets.length + ' 个 (targets 查看)', 't-ok');
+      }
+    },
+  },
+  targets: {
+    desc: '列出雷达目标表 (按距离排序)', usage: 'targets',
+    fn: function () {
+      if (!State.targets.length) { termPrint('目标表为空 — 尝试 scan deep', 't-warn'); return; }
+      termPrint('  编号         类型       方位角     距离      径向速度', 't-border');
+      var sorted = State.targets.slice().sort(function (a, b) { return a.r - b.r; });
+      sorted.forEach(function (t) {
+        printSeg([
+          { text: '  ' + t.id.padEnd(13), cls: State.selected && State.selected.id === t.id ? 't-accent' : '' },
+          { text: t.type.padEnd(11), cls: 'type-' + t.type.toLowerCase() },
+          { text: (Math.round(Radar.deg(t.theta)) + '°').padEnd(11), cls: '' },
+          { text: (Math.round(t.r * 400) + ' ls').padEnd(10), cls: '' },
+          { text: (t.v >= 0 ? '+' : '') + t.v.toFixed(1) + ' km/s', cls: '' },
+        ]);
+      });
+    },
+  },
+  lock: {
+    desc: '锁定雷达目标 (TGT 编号或列表序号)', usage: 'lock <编号>',
+    fn: function (args) {
+      var key = (args[0] || '').toUpperCase();
+      if (!key) { printErr('用法: lock <TGT-编号 | 序号> — 例: lock TGT-1007 / lock 2'); return; }
+      var t = State.targets.find(function (x) { return x.id.toUpperCase() === key; });
+      if (!t && /^\d+$/.test(key)) {
+        var sorted = State.targets.slice().sort(function (a, b) { return a.r - b.r; });
+        t = sorted[Number(key) - 1];
+      }
+      if (!t) { printErr('未找到目标: ' + key); return; }
+      Radar.select(t);
+    },
+  },
+  unlock: { desc: '解除目标锁定', usage: 'unlock', fn: function () {
+    if (!State.selected) { termPrint('当前没有锁定目标', 't-dim'); return; }
+    termPrint('已解除锁定 ▸ ' + State.selected.id, 't-warn');
+    Radar.clearInfo();
+  } },
+  hack: {
+    desc: '模拟渗透链 (纯本地仿真, 无真实网络行为)', usage: 'hack <ipv4>',
+    fn: async function (args) {
+      var ip = args[0] || '';
+      if (!ip) { printErr('用法: hack <ipv4>'); return; }
+      if (!isValidIp(ip)) { printErr('非法 IPv4: ' + ip + ' — 例: 10.13.37.42'); return; }
+      termPrint('▸ 目标握手 ' + ip + ' — 开拓反向隧道…', 't-info');
+      async function stage(label) {
+        var ln = printSeg([{ text: label + '  ', cls: 't-info' }]);
+        for (var i = 0; i <= 20; i++) {
+          ln.textContent = label + '  ' + bar(i * 5) + ' ' + pad(i * 5, 3) + '%';
+          await sleep(rand(22, 58));
+        }
+        ln.textContent = label + '  ' + bar(100) + ' 100% [ OK ]';
+        ln.className = 't-line t-ok';
+      }
+      await stage('  [1/5] 端口指纹识别 (443/8022/9090)');
+      await stage('  [2/5] 注入 payload_0x9F — 栈喷射');
+      await stage('  [3/5] 提权 UID 0 (CVE-2187-0xFEEL)');
+      await stage('  [4/5] 转储 /etc/shadow + 会话令牌');
+      await stage('  [5/5] 抹除审计日志 · 部署休眠后门');
+      printSeg([{ text: '✔ ROOT SHELL @ ' + ip, cls: 't-ok' }]);
+      termPrint('  截获数据 1.42 GB · 凭证 217 组 · ' + '*'.repeat(12), 't-dim');
+      Log.push('IDPS', 'crit', '渗透演习归档 — 目标 ' + ip);
+      Stats.spike();
+    },
+  },
+  ping: {
+    desc: '模拟 ICMP 探测', usage: 'ping <ipv4|主机>',
+    fn: async function (args) {
+      var host = args[0];
+      if (!host) { printErr('用法: ping <ipv4|主机名>'); return; }
+      if (!isValidIp(host) && !/^[a-z0-9.-]+$/i.test(host)) { printErr('非法主机: ' + host); return; }
+      termPrint('PING ' + host + ' (量子中继×6) 56 data bytes', 't-dim');
+      var total = 0;
+      for (var i = 1; i <= 4; i++) {
+        await sleep(rand(160, 520));
+        var t = rand(8.2, 92.7);
+        total += t;
+        termPrint('64 bytes from ' + host + ': icmp_seq=' + i + ' ttl=57 time=' + t.toFixed(1) + ' ms', '');
+      }
+      termPrint('--- ' + host + ' 统计 --- 4 收发 / 0% 丢包 / avg ' + (total / 4).toFixed(1) + ' ms', 't-ok');
+    },
+  },
+  trace: {
+    desc: '模拟路由追踪', usage: 'trace <ipv4|主机>',
+    fn: async function (args) {
+      var host = args[0];
+      if (!host) { printErr('用法: trace <ipv4|主机名>'); return; }
+      if (!isValidIp(host) && !/^[a-z0-9.-]+$/i.test(host)) { printErr('非法主机: ' + host); return; }
+      termPrint('traceroute to ' + host + ' · 最大跳数 9 · 量子抖动补偿', 't-dim');
+      var nodes = ['orbit-gw', 'luna-relay', 'mars-edge', 'belt-node', 'void-core'];
+      for (var i = 1; i <= 6; i++) {
+        await sleep(rand(140, 460));
+        if (i === 4) { termPrint(' ' + i + '   * * *  (节点反射屏蔽)', 't-warn'); continue; }
+        printSeg([
+          { text: ' ' + i + '   ', cls: '' },
+          { text: nodes[i % nodes.length] + i + '.nexus', cls: 't-info' },
+          { text: '  ' + rand(6, 180).toFixed(1) + ' ms', cls: '' },
+        ]);
+      }
+      termPrint('路径收敛 — ' + host + ' 可达', 't-ok');
+    },
+  },
+  status: {
+    desc: '系统状态总览', usage: 'status',
+    fn: function () {
+      var hostile = State.targets.filter(function (t) { return t.type === 'HOSTILE'; }).length;
+      var threat = hostile === 0 ? ['安全', 't-ok'] : hostile <= 2 ? ['警戒', 't-warn'] : ['交战', 't-err'];
+      termPrint('┌─ 系统状态 ───────────────────────────────', 't-border');
+      function row(k, v, cls) { printSeg([{ text: '  ' + k.padEnd(9), cls: 't-info' }, { text: v, cls: cls || '' }]); }
+      row('UPTIME', fmtUptime(Date.now() - BOOT_TS));
+      row('CPU', bar(Stats.value('cpu')) + ' ' + Stats.value('cpu').toFixed(1) + '%');
+      row('MEM', bar(Stats.value('mem')) + ' ' + Stats.value('mem').toFixed(1) + '%');
+      row('NET', '↓ ' + Stats.kb('down') + ' KB/s · ↑ ' + Stats.kb('up') + ' KB/s');
+      row('TARGETS', State.targets.length + ' 编目 · HOSTILE ×' + hostile);
+      row('威胁等级', threat[0], threat[1]);
+      row('UPLINK', '2.4 Tb/s · AES-256-GCM · 误码率 0.0001%');
+      row('模式', 'matrix ' + (State.matrixOn ? 'ON' : 'OFF') + ' · theme ' + State.theme + ' · fx ' + (State.fxOn ? 'ON' : 'OFF'));
+      termPrint('└──────────────────────────────────────────', 't-border');
+    },
+  },
+  whoami: { desc: '当前身份', usage: 'whoami', fn: function () {
+    termPrint('root — 权限组 OMEGA', 't-ok');
+    termPrint('身份链: 星际安全理事会 → 深空作战指挥部 → NEXUS-9', 't-dim');
+    termPrint('灵魂绑定: 已确认 (解除将终止生命体征监测)', 't-dim');
+  } },
+  neofetch: { desc: '系统信息卡片', usage: 'neofetch', fn: function () {
+    var mini = ['   ╱╲   ', '  ╱◈◈╲  ', ' ╱____╲ ', '  │  │  ', '  │  │  ', '  │  │  ', '  │  │  ', '  │  │  ', '  │  │  '];
+    var info = [
+      'root@nexus-9', '─────────────────────────────',
+      'OS       NEXUS-OS 9.7.2 深空特化版',
+      'Kernel   quantum-6.1.7-omega',
+      'Shell    nexus-sh 9.7',
+      'Uptime   ' + fmtUptime(Date.now() - BOOT_TS),
+      'CPU      QPU-9 量子协处理器 (128 qubits)',
+      'Memory   ' + Stats.value('mem').toFixed(1) + '% / 512 TB 神经显存',
+      'Uplink   2.4 Tb/s · 量子纠缠信道',
+      'Theme    ' + State.theme + ' · Matrix ' + (State.matrixOn ? 'ON' : 'OFF'),
+    ];
+    for (var i = 0; i < info.length; i++) {
+      printSeg([{ text: (mini[i] || mini[mini.length - 1]) + '  ', cls: 't-info' }, { text: info[i], cls: i === 0 ? 't-ok' : '' }]);
+    }
+  } },
+  date: { desc: '显示地球时间与伪星历', usage: 'date', fn: function () {
+    var d = new Date();
+    var doy = Math.ceil((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+    termPrint(d.toString(), '');
+    termPrint('星历 ' + d.getFullYear() + '.' + pad(doy, 3) + ' · 银河标准时 · 航程修正 +0.42s', 't-dim');
+  } },
+  uptime: { desc: '终端连续运行时长', usage: 'uptime', fn: function () {
+    termPrint('UPTIME ' + fmtUptime(Date.now() - BOOT_TS) + ' · 自冷启动引导完成', 't-ok');
+  } },
+  echo: { desc: '回显文本 (textNode 安全通道)', usage: 'echo <文本>', fn: function (args) {
+    if (args.length) printSeg([{ text: args.join(' '), cls: '' }]);
+  } },
+  history: { desc: '最近 30 条命令历史', usage: 'history', fn: function () {
+    if (!State.history.length) { termPrint('历史为空', 't-dim'); return; }
+    State.history.slice(-30).forEach(function (h, i) {
+      printSeg([{ text: pad(i + 1, 3) + '  ', cls: 't-dim' }, { text: h, cls: '' }]);
+    });
+  } },
+  matrix: { desc: '切换数据雨背景', usage: 'matrix [on|off]', fn: function (args) {
+    var a = (args[0] || '').toLowerCase();
+    toggleMatrix(a === 'on' ? true : a === 'off' ? false : undefined);
+    termPrint('数据雨: ' + (State.matrixOn ? 'ON — 欢迎回到母体' : 'OFF'), State.matrixOn ? 't-ok' : 't-dim');
+  } },
+  theme: { desc: '切换深空(dark)/昼间(light)主题', usage: 'theme [dark|light]', fn: function (args) {
+    var a = (args[0] || '').toLowerCase();
+    toggleTheme(a === 'dark' || a === 'light' ? a : undefined);
+    termPrint('主题 → ' + State.theme, 't-ok');
+  } },
+  fx: { desc: '切换 CRT 扫描线特效', usage: 'fx [on|off]', fn: function (args) {
+    var a = (args[0] || '').toLowerCase();
+    toggleFx(a === 'on' ? true : a === 'off' ? false : undefined);
+    termPrint('CRT 特效: ' + (State.fxOn ? 'ON' : 'OFF'), 't-ok');
+  } },
+  ls: { desc: '列出作战目录', usage: 'ls', fn: function () {
+    termPrint('starmap/   payloads/   creds/   quantum_kernel.img   aliens_do_not_open/   README.encode', '');
+    termPrint('(6 个对象 — 其中 1 个你最好别碰)', 't-dim');
+  } },
+  sudo: { desc: '提权尝试', usage: 'sudo <…>', fn: function () {
+    printErr('sudo: 无效 — 你已经是 root。权力无法被再次授予。');
+  } },
+  exit: { desc: '尝试退出终端', usage: 'exit', fn: async function () {
+    printErr('✖ 拒绝 — 检测到 OMEGA 级灵魂绑定, 此终端已成为你的一部分。');
+    termPrint('  也许试试: scan deep ? 深空仍有未编目回波…', 't-dim');
+    document.body.classList.add('glitching');
+    await sleep(700);
+    document.body.classList.remove('glitching');
+  } },
+};
+const ALIAS = {
+  帮助: 'help', 清屏: 'clear', 扫描: 'scan', 目标: 'targets', 锁定: 'lock',
+  破解: 'hack', 状态: 'status', 日期: 'date', 主题: 'theme', 退出: 'exit',
+};
+function suggest(name) {
+  var near = Object.keys(Commands).filter(function (c) { return c.indexOf(name.slice(0, 2).toLowerCase()) === 0; });
+  if (near.length) termPrint('你是否想输入: ' + near.join(' / ') + ' ?', 't-dim');
+}
+async function execCommand(raw) {
+  var line = String(raw).trim();
+  printSeg([{ text: 'root@nexus-9:~$ ', cls: 't-prompt' }, { text: line, cls: 't-cmd' }]);
+  if (!line) return;
+  State.history.push(line);
+  State.histIdx = State.history.length;
+  var tokens = tokenize(line);
+  var name = tokens[0].toLowerCase();
+  var args = tokens.slice(1);
+  var cmd = Commands[name] || Commands[ALIAS[name]];
+  if (!cmd) {
+    printErr('未知指令: ' + name + ' — 输入 help 查看手册');
+    suggest(name);
+    return;
+  }
+  try {
+    State.busy = true; setInputEnabled(false);
+    await cmd.fn(args);
+  } catch (err) {
+    printErr('执行异常: ' + (err && err.message ? err.message : err));
+  } finally {
+    State.busy = false; setInputEnabled(true);
+    termInput.focus({ preventScroll: true });
+  }
+}
+function completeInput() {
+  var val = termInput.value;
+  var head = (/^(\S*)$/.exec(val) || ['', val])[1].toLowerCase();
+  if (!head) return;
+  var uniq = Object.keys(Object.assign({}, Commands, ALIAS));
+  var hits = uniq.filter(function (c) { return c.indexOf(head) === 0; });
+  if (hits.length === 1) termInput.value = hits[0] + ' ';
+  else if (hits.length > 1) {
+    printSeg([{ text: 'root@nexus-9:~$ ', cls: 't-prompt' }, { text: val, cls: 't-cmd' }]);
+    termPrint(hits.join('  '), 't-dim');
+  }
+}
+
+/* ---------- 6. 输入事件 ---------- */
+termForm.addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  if (State.busy) { termPrint('⏳ 当前任务执行中, 请稍候…', 't-dim'); return; }
+  var v = termInput.value;
+  if (!v.trim()) return;
+  termInput.value = '';
+  execCommand(v);
+});
+termInput.addEventListener('keydown', function (ev) {
+  if (ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    if (State.histIdx > 0) { State.histIdx--; termInput.value = State.history[State.histIdx] || ''; }
+  } else if (ev.key === 'ArrowDown') {
+    ev.preventDefault();
+    if (State.histIdx < State.history.length) { State.histIdx++; termInput.value = State.history[State.histIdx] || ''; }
+  } else if (ev.key === 'Tab') { ev.preventDefault(); completeInput(); }
+});
+window.addEventListener('keydown', function (ev) {
+  if (ev.key === '/' && document.activeElement !== termInput && !$('bootScreen')) {
+    ev.preventDefault(); termInput.focus({ preventScroll: true });
+  }
+});
+$('termPanel').addEventListener('click', function (ev) {
+  if (ev.target.closest('button, input, a')) return;
+  var sel = window.getSelection();
+  if (sel && sel.type === 'Range') return;
+  termInput.focus({ preventScroll: true });
+});
+
+/* ---------- 7. 深空雷达 ---------- */
+const Radar = (function () {
+  const cv = $('radarCanvas'), ctx = cv.getContext('2d'), wrap = $('radarWrap');
+  const sweepEl = $('radarSweepDeg'), countEl = $('radarCount'), metaEl = $('radarMeta');
+  const TYPE_COLOR = { FRIENDLY: 'cyan', NEUTRAL: 'amber', UNKNOWN: 'violet', HOSTILE: 'red' };
+  let W = 0, H = 0, cx = 0, cy = 0, R = 0;
+  let sweep = -Math.PI / 2, boostUntil = 0;
+
+  function resize() {
+    var rect = wrap.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(80, rect.width); H = Math.max(80, rect.height);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = H / 2; R = Math.min(W, H) / 2 - 24;
+  }
+  function deg(theta) { return ((theta * 180 / Math.PI) % 360 + 360) % 360; }
+  function makeTarget(ghost) {
+    var roll = Math.random();
+    var type = roll < 0.24 ? 'FRIENDLY' : roll < 0.46 ? 'NEUTRAL' : roll < 0.82 ? 'UNKNOWN' : 'HOSTILE';
+    State.tgtSeq += 1;
+    return {
+      id: 'TGT-' + (1000 + State.tgtSeq * 7),
+      r: rand(0.16, 0.92), theta: rand(0, TAU),
+      drift: rand(0.015, 0.06) * (Math.random() < 0.5 ? -1 : 1),
+      v: rand(-18, 32), type: type, lastPing: 0,
+    };
+  }
+  function seed() { State.targets = []; for (var i = 0; i < 8; i++) State.targets.push(makeTarget(false)); }
+  function spawn(ghost) { if (State.targets.length < 14) State.targets.push(makeTarget(ghost)); }
+  function boost(ms) { boostUntil = performance.now() + ms; }
+  function clearInfo() {
+    State.selected = null;
+    var info = $('targetInfo');
+    info.classList.remove('locked');
+    info.replaceChildren(document.createTextNode('未锁定目标 — 点击雷达光点或输入 lock <编号>'));
+  }
+  function select(t) {
+    State.selected = t;
+    printSeg([
+      { text: '◎ 目标已锁定 ▸ ', cls: 't-warn' },
+      { text: t.id + ' [' + t.type + ']', cls: 'type-' + t.type.toLowerCase() },
+      { text: ' · 方位 ' + Math.round(deg(t.theta)) + '° · 距离 ' + Math.round(t.r * 400) + ' ls', cls: '' },
+    ]);
+  }
+  function setInfo(t) {
+    var info = $('targetInfo');
+    info.classList.add('locked');
+    info.replaceChildren();
+    function mk(text, cls) { var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = text; return s; }
+    info.appendChild(mk('◈ ' + t.id, 'ti-id type-' + t.type.toLowerCase()));
+    info.appendChild(mk('[' + t.type + ']', 'type-' + t.type.toLowerCase()));
+    info.appendChild(mk('方位 ' + deg(t.theta).toFixed(1) + '°', ''));
+    info.appendChild(mk('距离 ' + Math.round(t.r * 400) + ' ls', ''));
+    info.appendChild(mk('径向速度 ' + (t.v >= 0 ? '+' : '') + t.v.toFixed(1) + ' km/s', ''));
+  }
+  function step(dt, now) {
+    var deep = now < State.deepScanUntil, boostNow = now < boostUntil;
+    var speed = (deep ? 2.6 : 1) * (boostNow ? 3.2 : 1);
+    sweep = (sweep + dt * 0.9 * speed) % TAU;
+    if (sweep < 0) sweep += TAU;
+    for (var i = 0; i < State.targets.length; i++) {
+      var t = State.targets[i];
+      t.theta = (t.theta + t.drift * dt * 0.5 + TAU) % TAU;
+      var d = ((t.theta - sweep) % TAU + TAU) % TAU;
+      if (d < 0.03 + dt * 0.9 * speed) t.lastPing = now;
+    }
+    if (Math.random() < dt / 16) spawn(false);
+    if (State.targets.length > 12) {
+      var idx = State.targets.findIndex(function (x) { return x.type === 'UNKNOWN' && x !== State.selected; });
+      if (idx >= 0) State.targets.splice(idx, 1);
+    }
+  }
+  function drawBlip(t, now) {
+    var x = Math.cos(t.theta) * t.r * R, y = Math.sin(t.theta) * t.r * R;
+    var color = ThemeColors[TYPE_COLOR[t.type]] || ThemeColors.neon;
+    var decay = clamp(1 - (now - t.lastPing) / 2400, 0.12, 1);
+    var alpha = 0.12 + 0.88 * decay;
+    if (t.type === 'HOSTILE') alpha *= 0.72 + 0.28 * Math.sin(now / 160);
+    var size = t.type === 'HOSTILE' ? 4.5 : 3.4;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color; ctx.shadowBlur = 14 * decay + 2;
+    ctx.beginPath(); ctx.arc(x, y, size, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, size + 4 + (1 - decay) * 10, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (t === State.selected || decay > 0.75) {
+      ctx.fillStyle = ThemeColors.dim; ctx.font = '9px ' + MONO; ctx.textAlign = 'left';
+      ctx.fillText(t.id, x + 9, y - 7);
+    }
+    if (t === State.selected) {
+      ctx.setLineDash([5, 4]); ctx.lineDashOffset = -now / 40;
+      ctx.strokeStyle = color; ctx.globalAlpha = 0.95; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath(); ctx.moveTo(x - 18, y); ctx.lineTo(x + 18, y); ctx.moveTo(x, y - 18); ctx.lineTo(x, y + 18); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+  function draw(now) {
+    if (!W) return;
+    ctx.clearRect(0, 0, W, H);
+    var deep = now < State.deepScanUntil;
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = ThemeColors.gridC;
+    for (var i = 1; i <= 4; i++) { ctx.beginPath(); ctx.arc(0, 0, R * i / 4, 0, TAU); ctx.stroke(); }
+    for (var a = 0; a < 12; a++) {
+      var ang = a * Math.PI / 6;
+      ctx.globalAlpha = a % 3 === 0 ? 0.95 : 0.4;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ang) * R, Math.sin(ang) * R); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ThemeColors.faint; ctx.font = '10px ' + MONO;
+    ctx.textAlign = 'center'; ctx.fillText('000°', 0, -R - 9);
+    ctx.textAlign = 'left'; ctx.fillText('090°', R + 8, 4);
+    ctx.textAlign = 'center'; ctx.fillText('180°', 0, R + 18);
+    ctx.textAlign = 'right'; ctx.fillText('270°', -R - 8, 4);
+    ctx.globalCompositeOperation = 'lighter';
+    var beamColor = deep ? ThemeColors.amber : ThemeColors.neon;
+    for (var k = 0; k < 34; k++) {
+      var ta = sweep - k * 0.02 * (deep ? 2.6 : 1);
+      ctx.globalAlpha = Math.pow(1 - k / 34, 2) * (deep ? 0.30 : 0.20);
+      ctx.strokeStyle = beamColor;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ta) * R, Math.sin(ta) * R); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = beamColor; ctx.lineWidth = 2;
+    ctx.shadowColor = beamColor; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(sweep) * R, Math.sin(sweep) * R); ctx.stroke();
+    ctx.shadowBlur = 0;
+    for (var bi = 0; bi < State.targets.length; bi++) drawBlip(State.targets[bi], now);
+    ctx.fillStyle = beamColor; ctx.fillRect(-1.5, -1.5, 3, 3);
+    ctx.restore();
+    if (deep) {
+      ctx.strokeStyle = ThemeColors.amber; ctx.globalAlpha = 0.75;
+      ctx.setLineDash([6, 8]); ctx.lineDashOffset = -now / 30; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, cy, R + 8 + Math.sin(now / 300) * 4, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+  }
+  function updateHud(now) {
+    sweepEl.textContent = pad(Math.round(deg(sweep)), 3) + '°';
+    countEl.textContent = '目标 ' + State.targets.length;
+    metaEl.textContent = now < State.deepScanUntil ? 'DEEP SCAN ▸ 增益 +18dB' : '被动扫描 · 半径 400 ls';
+    if (State.selected) setInfo(State.selected);
+  }
+  cv.addEventListener('click', function (ev) {
+    var rect = cv.getBoundingClientRect();
+    var x = ev.clientX - rect.left - cx, y = ev.clientY - rect.top - cy;
+    var best = null, bestD = 15;
+    for (var i = 0; i < State.targets.length; i++) {
+      var t = State.targets[i];
+      var d = Math.hypot(Math.cos(t.theta) * t.r * R - x, Math.sin(t.theta) * t.r * R - y);
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    if (best) select(best);
+  });
+  return { resize: resize, step: step, draw: draw, seed: seed, spawn: spawn, select: select, boost: boost, deg: deg, updateHud: updateHud, clearInfo: clearInfo };
+})();
+
+/* ---------- 8. 遥测图表 (CPU/MEM/NET) ---------- */
+const Stats = (function () {
+  var series = {
+    cpu: Array.from({ length: 48 }, function () { return rand(28, 62); }),
+    mem: Array.from({ length: 48 }, function () { return rand(35, 70); }),
+    up: Array.from({ length: 48 }, function () { return rand(10, 45); }),
+    down: Array.from({ length: 48 }, function () { return rand(15, 55); }),
+  };
+  var defs = [
+    { key: 'cpu', cvId: 'cpuCanvas', valId: 'cpuVal', color: 'neon', fmt: function (v) { return v.toFixed(1) + '%'; } },
+    { key: 'mem', cvId: 'memCanvas', valId: 'memVal', color: 'cyan', fmt: function (v) { return v.toFixed(1) + '%'; } },
+    { key: 'net', cvId: 'netCanvas', valId: 'netVal', color: 'amber', dual: true, fmt: function (v) { return Math.round(v * 18) + ' KB/s'; } },
+  ];
+  var ctxs = {}, lastTick = 0, lastDraw = 0;
+  function next(v, drift) {
+    var nv = v + rand(-(drift || 6), drift || 6);
+    if (Math.random() < 0.05) nv += rand(6, 20);
+    return clamp(nv, 4, 98);
+  }
+  function tick() {
+    ['cpu', 'mem', 'up', 'down'].forEach(function (k) {
+      series[k].push(next(series[k][series[k].length - 1]));
+      if (series[k].length > 48) series[k].shift();
+    });
+  }
+  function resize() {
+    defs.forEach(function (d) {
+      var cv = $(d.cvId), c = cv.getContext('2d');
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.max(60, Math.round(cv.clientWidth * dpr));
+      cv.height = Math.max(30, Math.round(cv.clientHeight * dpr));
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctxs[d.key] = { ctx: c, w: cv.clientWidth, h: cv.clientHeight };
+    });
+  }
+  function plot(o, arr, colorKey, withArea) {
+    var c = o.ctx, w = o.w, h = o.h;
+    var color = ThemeColors[colorKey];
+    c.beginPath();
+    arr.forEach(function (v, i) {
+      var x = (i / (arr.length - 1)) * w;
+      var y = h - (v / 100) * (h - 4) - 2;
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    });
+    c.strokeStyle = color; c.lineWidth = 1.5;
+    c.shadowColor = color; c.shadowBlur = 5;
+    c.stroke(); c.shadowBlur = 0;
+    if (withArea) {
+      c.lineTo(w, h); c.lineTo(0, h); c.closePath();
+      c.globalAlpha = 0.14; c.fillStyle = color; c.fill(); c.globalAlpha = 1;
+    }
+  }
+  function draw() {
+    defs.forEach(function (d) {
+      var o = ctxs[d.key]; if (!o) return;
+      var c = o.ctx;
+      c.clearRect(0, 0, o.w, o.h);
+      c.strokeStyle = ThemeColors.gridC; c.lineWidth = 1;
+      for (var i = 1; i < 4; i++) {
+        var yy = (o.h * i) / 4;
+        c.beginPath(); c.moveTo(0, yy); c.lineTo(o.w, yy); c.stroke();
+      }
+      if (d.dual) { plot(o, series.down, 'cyan', true); plot(o, series.up, 'amber', false); }
+      else plot(o, series[d.key], d.color, true);
+      var v = d.dual ? Math.max(series.up[47], series.down[47]) : series[d.key][47];
+      $(d.valId).textContent = d.fmt(v);
+    });
+  }
+  function value(k) { return series[k][series[k].length - 1]; }
+  function kb(k) { return (value(k) * 18).toFixed(1); }
+  function spike() {
+    for (var i = 0; i < 8; i++) {
+      series.up.push(clamp(value('up') + rand(8, 26), 0, 100));
+      if (series.up.length > 48) series.up.shift();
+    }
+  }
+  function maybe(now) {
+    if (now - lastTick > 600) { lastTick = now; tick(); }
+    if (now - lastDraw > 130) { lastDraw = now; draw(); }
+  }
+  return { resize: resize, maybe: maybe, value: value, kb: kb, spike: spike };
+})();
+
+/* ---------- 9. 事件流日志 ---------- */
+const Log = (function () {
+  var out = $('logOut');
+  var MODS = ['FIREWALL', 'ORBIT-LINK', 'IDPS', 'GRID-RELAY', 'CRYPTO', 'SENSORS', 'AI-CORE', 'UPLINK'];
+  var OK = ['心跳校验通过 · seq=%N', '数据包签名有效 · %N bytes', '密钥轮换完成 → 轮次 %N', '遥测同步 · 节点 %N/23', '量子信道误码率 0.0001%', '波束指向校正 %N µrad', '镜像校验和匹配 · %N 段'];
+  var WARN = ['端口扫描探测 · 源 %IP', '丢包率 %N% 高于阈值', '访问令牌 T-%Ns 后过期', '未签名固件块被拒绝', '轨道碎片预警 · 概率 %N%'];
+  var CRIT = ['入侵尝试已阻断 · 源 %IP', '蜜罐触发 · 指纹 0x%HEX 已归档', '异常出站流量 %N MB'];
+  var nextAt = 0;
+  function fill(t) {
+    return t
+      .replace(/%N/g, function () { return String(randInt(2, 999)); })
+      .replace(/%IP/g, function () { return randInt(7, 220) + '.' + randInt(0, 255) + '.' + randInt(0, 255) + '.' + randInt(1, 254); })
+      .replace(/%HEX/g, function () { return Math.floor(rand(0x10000, 0xFFFFF)).toString(16).toUpperCase(); });
+  }
+  function push(mod, level, msg) {
+    var line = document.createElement('div');
+    line.className = 'log-line';
+    var time = document.createElement('span'); time.className = 'log-time'; time.textContent = clockStr();
+    var lv = document.createElement('span'); lv.className = 'log-lv lv-' + level; lv.textContent = level.toUpperCase();
+    var md = document.createElement('span'); md.className = 'log-mod'; md.textContent = '[' + mod + ']';
+    var tx = document.createElement('span'); tx.className = 'log-msg'; tx.textContent = msg;
+    line.appendChild(time); line.appendChild(lv); line.appendChild(md); line.appendChild(tx);
+    out.appendChild(line);
+    while (out.children.length > 140) out.removeChild(out.firstChild);
+    if (!out.matches(':hover')) out.scrollTop = out.scrollHeight;
+  }
+  function maybe(now) {
+    if (now < nextAt) return;
+    nextAt = now + rand(900, 2300);
+    var roll = Math.random();
+    var level = roll < 0.6 ? 'ok' : roll < 0.9 ? 'warn' : 'crit';
+    var pool = level === 'ok' ? OK : level === 'warn' ? WARN : CRIT;
+    push(pick(MODS), level, fill(pick(pool)));
+  }
+  function bootMsgs() {
+    push('AI-CORE', 'ok', '终端会话建立 · 操作者 root (OMEGA)');
+    push('ORBIT-LINK', 'ok', '深空网格握手完成 · 延迟 42ms');
+    push('IDPS', 'warn', '今日已拦截未授权接入 ×3');
+  }
+  return { push: push, maybe: maybe, bootMsgs: bootMsgs };
+})();
+
+/* ---------- 10. 引导序列 ---------- */
+const BOOT_LOGO = [
+  ' ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗',
+  ' ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝',
+  ' ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗',
+  ' ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║',
+  ' ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║',
+  ' ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝',
+  '     D E E P   S P A C E   T E R M I N A L',
+].join('\n');
+const BOOT_STEPS = [
+  ['[NEXUS-9 BIOS] 深空链路固件 v9.7.2 — ORBITAL DYNAMICS © 2187', 90],
+  ['检测量子协处理器 ..................... QPU-9 在线', 140],
+  ['校验固件签名 0x7F3A9E ............... OK', 90],
+  ['挂载 /dev/hyperspace ................. OK', 110],
+  ['加载星图数据库 /mnt/starmap (2.4 PB) . OK', 180],
+  ['建立 AES-256-GCM 加密信道 ............ OK', 140],
+  ['同步轨道节点 23/23 ................... OK', 160],
+  ['雷达阵列相位校准 ..................... OK', 150],
+  ['! 检测到未授权接入尝试 ×3 ............ 已拦截', 170],
+  ['身份验证 root@nexus-9 [OMEGA] ........ 授权', 200],
+  ['渲染矩阵子系统 / 光标守护进程 ......... OK', 120],
+  ['SYSTEM READY — 移交控制权', 260],
+];
+var bootSkipped = false;
+function setBootBar(pct) {
+  $('bootBarFill').style.width = pct + '%';
+  $('bootBarPct').textContent = Math.round(pct) + '%';
+}
+async function runBoot() {
+  $('bootLogo').textContent = BOOT_LOGO;
+  var lines = $('bootLines');
+  var start = performance.now();
+  var total = REDUCED_MOTION ? 400 : 2000;
+  for (var i = 0; i < BOOT_STEPS.length; i++) {
+    if (bootSkipped) break;
+    var div = document.createElement('div');
+    div.textContent = BOOT_STEPS[i][0];
+    lines.appendChild(div);
+    while (lines.children.length > 12) lines.removeChild(lines.firstChild);
+    setBootBar(clamp(((performance.now() - start) / total) * 100, 3, 98));
+    await sleep(REDUCED_MOTION ? 12 : Math.max(10, BOOT_STEPS[i][1] + rand(-25, 55)));
+  }
+  setBootBar(100);
+  if (!bootSkipped) await sleep(REDUCED_MOTION ? 80 : 420);
+  enterApp();
+}
+function armBootSkip() {
+  var skip = function () { bootSkipped = true; };
+  window.addEventListener('keydown', skip);
+  $('bootScreen').addEventListener('pointerdown', skip);
+}
+function enterApp() {
+  var boot = $('bootScreen'), app = $('app');
+  app.hidden = false;
+  boot.classList.add('boot-off');
+  setTimeout(function () { if (boot.parentNode) boot.parentNode.removeChild(boot); }, 700);
+  $('sbIp').textContent = '10.' + randInt(0, 255) + '.' + randInt(0, 255) + '.' + randInt(1, 254);
+  requestAnimationFrame(function () { resizeAll(); Radar.seed(); });
+  printSeg([{ text: BOOT_LOGO, cls: 't-logo' }]);
+  termPrint('NEXUS://DEEP-SPACE 作战终端 — 加密会话已建立', 't-ok');
+  termPrint('输入 help 查看指令手册 · 尝试 scan deep / targets / hack 10.13.37.42', 't-dim');
+  Log.bootMsgs();
+  termInput.focus({ preventScroll: true });
+}
+
+/* ---------- 11. 主循环与装配 ---------- */
+function resizeAll() { Matrix.resize(); Radar.resize(); Stats.resize(); }
+window.addEventListener('resize', function () { if (!$('app').hidden) resizeAll(); });
+let lastT = performance.now(), infoNext = 0, matAcc = 0;
+document.addEventListener('visibilitychange', function () { lastT = performance.now(); });
+
+function clockStr() {
+  var d = new Date();
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+var clockNext = 0, clockDateSet = false;
+function clockMaybe(now) {
+  if (now < clockNext) return;
+  clockNext = now + 250;
+  $('clockTime').textContent = clockStr();
+  if (!clockDateSet) {
+    clockDateSet = true;
+    var d = new Date();
+    $('clockDate').textContent = d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()) + ' 周' + '日一二三四五六'[d.getDay()];
+  }
+}
+var frames = 0, fpsNext = 0;
+function fpsMaybe(now) {
+  frames += 1;
+  if (now >= fpsNext) { $('sbFps').textContent = String(frames); frames = 0; fpsNext = now + 1000; }
+}
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (document.hidden || $('app').hidden) { lastT = now; return; }
+  var dt = clamp((now - lastT) / 1000, 0, 0.05);
+  lastT = now;
+  Radar.step(dt, now);
+  Radar.draw(now);
+  matAcc += dt;
+  if (matAcc > 0.066) { matAcc = 0; Matrix.step(); }
+  Stats.maybe(now);
+  Log.maybe(now);
+  clockMaybe(now);
+  fpsMaybe(now);
+  if (now > infoNext) { infoNext = now + 200; Radar.updateHud(now); }
+}
+function init() {
+  var savedTheme = 'dark', savedMatrix = '1', savedFx = '1';
+  try {
+    savedTheme = localStorage.getItem('nexus-theme') || 'dark';
+    savedMatrix = localStorage.getItem('nexus-matrix') || '1';
+    savedFx = localStorage.getItem('nexus-fx') || '1';
+  } catch (e) {}
+  applyTheme(savedTheme === 'light' ? 'light' : 'dark');
+  toggleMatrix(savedMatrix === '1' && !REDUCED_MOTION);
+  toggleFx(savedFx === '1' && !REDUCED_MOTION);
+  $('themeBtn').addEventListener('click', function () { toggleTheme(); });
+  $('fxBtn').addEventListener('click', function () { toggleFx(); });
+  $('matrixBtn').addEventListener('click', function () { toggleMatrix(); });
+  resizeAll();
+  Radar.seed();
+  armBootSkip();
+  runBoot();
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>
