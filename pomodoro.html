@@ -65,6 +65,18 @@ body.lock{overflow:hidden}
 .icon-btn .ico-off{display:none}
 .icon-btn.off .ico-on{display:none}
 .icon-btn.off .ico-off{display:block}
+/* 白噪音按钮激活状态 */
+.icon-btn.white-noise-on {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--glow);
+  animation: whiteNoisePulse 2s ease-in-out infinite;
+}
+@keyframes whiteNoisePulse {
+  0%, 100% { box-shadow: 0 0 12px var(--glow); }
+  50% { box-shadow: 0 0 24px var(--glow); }
+}
+
 
 /* ---------- 主舞台 ---------- */
 main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(18px,3.4vh,28px);padding:6px 16px 26px}
@@ -148,7 +160,18 @@ body[data-status="PAUSED"] #timeText{color:var(--ink-muted)}
 /* ---------- 反馈层 ---------- */
 #toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,12px);background:rgba(28,26,34,.92);border:1px solid var(--line);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s var(--ease-spring);z-index:70;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:86vw;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
-#flashLayer{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;background:radial-gradient(120% 90% at 50% 42%,var(--glow),transparent 70%)}
+#flashLayer{
+  position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: radial-gradient(circle at 50% 50%, var(--glow), transparent 70%);
+  opacity: 0; transition: opacity .5s ease;
+}
+#flashLayer.active {
+  animation: flashPulse 0.6s ease-out;
+}
+@keyframes flashPulse {
+  0% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
 #flashLayer.on{animation:flashAnim .55s ease-out 3}
 @keyframes flashAnim{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
 
@@ -184,6 +207,19 @@ body[data-status="PAUSED"] #timeText{color:var(--ink-muted)}
         </svg>
         <svg class="ico-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="whiteNoiseBtn" type="button" aria-label="切换白噪音" aria-pressed="false" title="白噪音：关">
+        <svg class="ico-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12c2.5-3 5.5-5 10-5s7.5 2 10 5"/>
+          <path d="M2 12c2.5 3 5.5 5 10 5s7.5-2 10-5"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <svg class="ico-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12c2.5-3 5.5-5 10-5s7.5 2 10 5"/>
+          <path d="M2 12c2.5 3 5.5 5 10 5s7.5-2 10-5"/>
+          <circle cx="12" cy="12" r="3"/>
+          <line x1="2" y1="2" x2="22" y2="22" stroke-width="2.5"/>
         </svg>
       </button>
       <button class="icon-btn" id="settingsBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="打开设置" title="设置">
@@ -277,6 +313,10 @@ body[data-status="PAUSED"] #timeText{color:var(--ink-muted)}
     </div>
     <div class="field-row">
       <div class="field-info"><label for="setSound">完成提示音</label><p>本地实时合成的三音琶音，无任何外链音频</p></div>
+    <div class="field-row">
+      <div class="field-info"><label for="setWhiteNoise">环境白噪音</label><p>播放粉红噪音帮助专注</p></div>
+      <label class="switch"><input type="checkbox" id="setWhiteNoise"><span class="knob" aria-hidden="true"></span></label>
+    </div>
       <label class="switch"><input type="checkbox" id="setSound" checked><span class="knob" aria-hidden="true"></span></label>
     </div>
     <div class="drawer-foot">
@@ -312,7 +352,7 @@ var LIMITS = Object.freeze({
   longMin:  Object.freeze([1,60]),
   rounds:   Object.freeze([2,8])
 });
-var DEFAULT_SETTINGS = Object.freeze({ focusMin:25, shortMin:5, longMin:15, rounds:4, autoStart:false, sound:true });
+var DEFAULT_SETTINGS = Object.freeze({ focusMin:25, shortMin:5, longMin:15, rounds:4, autoStart:false, sound:true, whiteNoise:false });
 var MIN_MS = 60000;                       // 整数毫秒基准
 var K_RUNTIME = 'pomo.runtime.v1';        // 命名空间一：运行态
 var K_SETTINGS = 'pomo.settings.v1';      // 命名空间二：设置
@@ -553,7 +593,7 @@ var els = {
   resetDefaultsBtn: byId('resetDefaultsBtn'),
   setAutoStart: byId('setAutoStart'), setSound: byId('setSound'),
   toast: byId('toast'), flash: byId('flashLayer'), srLive: byId('srLive')
-};
+}, whiteNoiseBtn: document.getElementById("whiteNoiseBtn"), setWhiteNoise: document.getElementById("setWhiteNoise") };
 if (!els.mainBtn || !els.time || !els.ringProg || !els.drawer) { return; }
 
 /* ---------------- 运行时状态 ---------------- */
@@ -684,6 +724,7 @@ function dispatch(ev){
   }
   for (var i = 0; i < res.effects.length; i++) runEffect(res.effects[i]);
   render();
+    handleWhiteNoiseLifecycle();
   return res;
 }
 function snapSessionTotal(){
@@ -747,7 +788,7 @@ function syncSoundBtn(){
   els.soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   els.soundBtn.title = on ? '提示音：开' : '提示音：关';
 }
-function render(){
+function render(){ syncWhiteNoiseBtn();
   var ph = state.phase, st = state.status, meta = PHASE_META[ph];
   document.body.dataset.phase = ph;
   document.body.dataset.status = st;
@@ -930,6 +971,148 @@ els.resetDefaultsBtn.addEventListener('click', function(){
 });
 els.soundBtn.addEventListener('click', function(){
   unlockAudio();
+/* ================================================================
+ * 白噪音生成器 (Web Audio API)
+ * ================================================================ */
+var audioCtx = null;
+var whiteNoiseSource = null;
+var whiteNoiseGain = null;
+var whiteNoiseFilter = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.warn('Web Audio API not supported');
+      return null;
+    }
+  }
+  return audioCtx;
+}
+
+function createWhiteNoise() {
+  var ctx = getAudioContext();
+  if (!ctx) return null;
+  
+  var bufferSize = 2 * ctx.sampleRate;
+  var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  
+  var source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  
+  var filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1200;
+  filter.Q.value = 0.7;
+  
+  var gain = ctx.createGain();
+  gain.gain.value = 0.15;
+  
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  
+  return { source: source, filter: filter, gain: gain };
+}
+
+function startWhiteNoise() {
+  if (whiteNoiseSource) return;
+  var nodes = createWhiteNoise();
+  if (!nodes) return;
+  whiteNoiseSource = nodes.source;
+  whiteNoiseFilter = nodes.filter;
+  whiteNoiseGain = nodes.gain;
+  whiteNoiseSource.start();
+}
+
+function stopWhiteNoise() {
+  if (whiteNoiseSource) {
+    whiteNoiseSource.stop();
+    whiteNoiseSource = null;
+    whiteNoiseFilter = null;
+    whiteNoiseGain = null;
+  }
+}
+
+function setWhiteNoiseState(on) {
+  if (on) {
+    startWhiteNoise();
+  } else {
+    stopWhiteNoise();
+  }
+  // 更新按钮状态
+  els.whiteNoiseBtn.classList.toggle('white-noise-on', on);
+  els.whiteNoiseBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  els.whiteNoiseBtn.title = on ? '白噪音：开' : '白噪音：关';
+}
+
+/* ================================================================
+ * 白噪音事件绑定与状态流转
+ * ================================================================ */
+function syncWhiteNoiseBtn() {
+  var on = state.settings.whiteNoise;
+  els.whiteNoiseBtn.classList.toggle('white-noise-on', on);
+  els.whiteNoiseBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  els.whiteNoiseBtn.title = on ? '白噪音：开' : '白噪音：关';
+}
+
+// 初始化时恢复白噪音状态
+function initWhiteNoise() {
+  syncWhiteNoiseBtn();
+  if (state.settings.whiteNoise) {
+    startWhiteNoise();
+  }
+}
+
+// 工具栏按钮事件
+els.whiteNoiseBtn.addEventListener('click', function() {
+  var next = !state.settings.whiteNoise;
+  dispatch({ type: 'SETTING_CHANGE', patch: { whiteNoise: next } });
+  setWhiteNoiseState(next);
+});
+
+// 设置开关事件
+els.setWhiteNoise.addEventListener('change', function() {
+  var next = this.checked;
+  dispatch({ type: 'SETTING_CHANGE', patch: { whiteNoise: next } });
+  setWhiteNoiseState(next);
+});
+
+// 与计时器状态联动（完成/重置时停止白噪音）
+function handleWhiteNoiseLifecycle() {
+  if (state.status === STATUS.IDLE) {
+    // 计时结束时停止白噪音
+    if (state.settings.whiteNoise) {
+      setWhiteNoiseState(false);
+      dispatch({ type: 'SETTING_CHANGE', patch: { whiteNoise: false } });
+    }
+  }
+}
+
+// 页面卸载时清理
+window.addEventListener('pagehide', function() {
+  stopWhiteNoise();
+  if (audioCtx) {
+    audioCtx.close();
+    audioCtx = null;
+  }
+});
+
+// 内存泄漏防护：在visibilitychange时暂停/恢复
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    stopWhiteNoise();
+  } else if (state.settings.whiteNoise) {
+    startWhiteNoise();
+  }
+});
+
   dispatch({ type:'SETTING_CHANGE', patch: { sound: !state.settings.sound } });
   toast(state.settings.sound ? '提示音已开启' : '提示音已关闭');
 });
@@ -991,6 +1174,7 @@ function recover(){
 recover();
 setupRing();
 render();
+initWhiteNoise();
 if (pendingNotice) toast(pendingNotice);
 
 /* ================================================================
