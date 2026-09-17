@@ -22,6 +22,8 @@
             --glow-green: 0 0 20px rgba(0, 255, 136, 0.5);
             --muyu-size: min(300px, 60vw);
             --panel-radius: 12px;
+            --neon-gold: #ffd700;
+            --glow-gold: 0 0 20px rgba(255, 215, 0, 0.5);
         }
 
         /* ========== RESET & BASE ========== */
@@ -176,6 +178,16 @@
             text-transform: uppercase;
         }
 
+        .auto-chao-label-display {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--neon-gold);
+            text-shadow: 0 0 6px var(--neon-gold), 0 0 14px rgba(255, 215, 0, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        }
+
         /* ========== MERIT CYBER GLOW ========== */
         .hit-counter {
             position: relative;
@@ -198,6 +210,11 @@
         @keyframes orbBreath {
             0%, 100% { opacity: 0.55; transform: translateY(-50%) scale(1); }
             50%      { opacity: 1;    transform: translateY(-50%) scale(1.35); }
+
+        .merit-glow-orb.gold {
+            background: radial-gradient(circle, var(--neon-gold) 0%, var(--neon-orange) 60%, transparent 100%);
+            box-shadow: 0 0 8px var(--neon-gold), 0 0 18px var(--neon-orange), 0 0 32px rgba(255, 215, 0, 0.7);
+        }
         }
 
         .counter-flash {
@@ -220,9 +237,32 @@
             transform: translateX(-50%);
             font-size: 0.8rem;
             font-weight: bold;
-            color: var(--neon-green);
-            text-shadow: 0 0 6px var(--neon-green), 0 0 14px rgba(0, 255, 65, 0.7);
+            color: var(--neon-gold);
+            text-shadow: 0 0 6px var(--neon-gold), 0 0 14px rgba(255, 215, 0, 0.7);
             animation: meritRise 0.9s ease-out forwards;
+            pointer-events: none;
+
+        .gold-merit-float {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--neon-gold);
+            text-shadow: 0 0 8px var(--neon-gold), 0 0 18px rgba(255, 215, 0, 0.8);
+            animation: goldMeritRise 1.2s ease-out forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .merit-float-auto {
+            position: absolute;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--neon-gold);
+            text-shadow: 0 0 10px var(--neon-gold), 0 0 22px rgba(255, 215, 0, 0.9);
+            animation: goldMeritRise 1.4s ease-out forwards;
             pointer-events: none;
             white-space: nowrap;
         }
@@ -231,6 +271,28 @@
             0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
             25%  { opacity: 1; transform: translate(-50%, -4px) scale(1.05); }
             100% { opacity: 0; transform: translate(-50%, -26px) scale(1); }
+        }
+
+
+        @keyframes goldMeritRise {
+            0%   { opacity: 0; transform: translate(-50%, 12px) scale(0.8); }
+            20%  { opacity: 1; transform: translate(-50%, -6px) scale(1.1); }
+            100% { opacity: 0; transform: translate(-50%, -40px) scale(1.2); }
+        }
+        /* ========== GOLD MERIT FLOAT ========== */
+        .merit-float-gold {
+            position: fixed;
+            left: 50vw;
+            top: 60vh;
+            color: #ffd700;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.5);
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 1;
+            transform: translateY(0) translateX(0) scale(1);
+            transition: all 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
         /* ========== CONTROL PANEL ========== */
@@ -353,6 +415,67 @@
             color: var(--bg-primary);
         }
 
+        /* ========== AUTO-CHAO SWITCH ========== */
+        .auto-chao-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 215, 0, 0.05);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .auto-chao-label {
+            font-size: 0.8rem;
+            color: var(--neon-gold);
+            text-shadow: 0 0 6px var(--neon-gold);
+        }
+
+        .auto-chao-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .auto-chao-switch.active {
+            background: var(--neon-gold);
+            box-shadow: var(--glow-gold);
+        }
+
+        .auto-chao-switch::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .auto-chao-switch.active::before {
+            left: 29px;
+            background: var(--bg-primary);
+        }
+
+
+        .muyu-body.auto-chao-active {
+            filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.6));
+            animation: autoChaoPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes autoChaoPulse {
+            0%, 100% { filter: drop-shadow(0 0 30px rgba(255, 215, 0, 0.4)); }
+            50% { filter: drop-shadow(0 0 60px rgba(255, 215, 0, 0.8)); }
+        }
         .beat-pattern {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -627,6 +750,7 @@
             <div class="merit-glow-orb" id="meritGlowOrb"></div>
             <div class="hit-count" id="hitCount">0</div>
             <div class="hit-label">TOTAL STRIKES</div>
+            <div class="auto-chao-label-display" id="autoChaoLabelDisplay" style="display: none;">🙏 功德无量</div>
         </div>
     </div>
 
@@ -674,6 +798,10 @@
             <input type="range" id="bpm" min="40" max="240" value="120">
         </div>
         <button class="beat-btn" id="autoBeatBtn">▶ 自动节拍</button>
+        <div class="auto-chao-container">
+            <span class="auto-chao-label">🙏 自动超度</span>
+            <div class="auto-chao-switch" id="autoChaoSwitch"></div>
+        </div>
         <div class="beat-pattern" id="beatPattern">
             <div class="beat-dot active" data-index="0"></div>
             <div class="beat-dot" data-index="1"></div>
@@ -1105,18 +1233,174 @@
         }
 
         // ========== MAIN APPLICATION ==========
+// ========== AUTO-CHANT STATE MACHINE ==========
+class AutoChantState {
+    constructor() {
+        this.states = {
+            IDLE: 'idle',
+            CHANTING: 'chanting',
+            PAUSED: 'paused'
+        };
+        this.currentState = this.states.IDLE;
+        this.intensity = 1;
+        this.maxIntensity = 5;
+        this.chantCount = 0;
+        this.intervalMin = 800;
+        this.intervalMax = 2000;
+        this.currentInterval = 1500;
+        this.lastChantTime = 0;
+        this.goldParticles = [];
+        this.dynamicFreqOffset = 0;
+        this.listeners = new Map();
+        this.animationFrameId = null;
+        this.chantTimerId = null;
+    }
+
+    transition(newState) {
+        if (this.currentState === newState) return false;
+        const oldState = this.currentState;
+        this.currentState = newState;
+        this.emit('stateChange', { from: oldState, to: newState });
+        return true;
+    }
+
+    on(event, callback) {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, new Set());
+        }
+        this.listeners.get(event).add(callback);
+        return () => this.listeners.get(event)?.delete(callback);
+    }
+
+    emit(event, data) {
+        const callbacks = this.listeners.get(event);
+        if (callbacks) {
+            callbacks.forEach(cb => cb(data));
+        }
+    }
+
+    calculateInterval() {
+        const baseInterval = this.intervalMin + 
+            (this.intervalMax - this.intervalMin) * (1 - this.intensity / this.maxIntensity);
+        const jitter = (Math.random() - 0.5) * 200;
+        return Math.max(400, baseInterval + jitter);
+    }
+
+    calculateDynamicFreq(baseFreq) {
+        const variation = Math.sin(this.chantCount * 0.1) * 20 + 
+                         (Math.random() - 0.5) * 10;
+        return Math.max(80, Math.min(880, baseFreq + variation));
+    }
+
+    calculateVelocity() {
+        return Math.min(0.6 + this.intensity * 0.15, 1.5);
+    }
+
+    incrementIntensity() {
+        this.intensity = Math.min(this.intensity + 0.05, this.maxIntensity);
+    }
+
+    reset() {
+        this.intensity = 1;
+        this.chantCount = 0;
+        this.dynamicFreqOffset = 0;
+    }
+
+    cleanup() {
+        this.listeners.clear();
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        if (this.chantTimerId) {
+            clearTimeout(this.chantTimerId);
+            this.chantTimerId = null;
+        }
+    }
+}
+
+// ========== GOLD MERIT PARTICLE SYSTEM ==========
+class GoldMeritSystem {
+    constructor(container) {
+        this.container = container;
+        this.particles = [];
+        this.isAnimating = false;
+        this.frameId = null;
+    }
+
+    spawn(x, y, text = '+1 功德') {
+        const merit = document.createElement('div');
+        merit.className = 'merit-float-gold';
+        merit.textContent = text;
+        
+        const startX = x || (Math.random() * 80 + 10);
+        const startY = y || (Math.random() * 30 + 60);
+        const driftX = (Math.random() - 0.5) * 150;
+        const duration = 2000 + Math.random() * 1000;
+        
+        merit.style.cssText = `
+            position: fixed;
+            left: ${startX}vw;
+            top: ${startY}vh;
+            color: #ffd700;
+            font-size: ${1 + Math.random() * 0.5}rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.5);
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 1;
+            transform: translateY(0) translateX(0) scale(1);
+            transition: all ${duration}ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        `;
+        
+        this.container.appendChild(merit);
+        
+        requestAnimationFrame(() => {
+            merit.style.transform = `translateY(-${100 + Math.random() * 100}px) translateX(${driftX}px) scale(0.5)`;
+            merit.style.opacity = '0';
+        });
+        
+        setTimeout(() => {
+            merit.remove();
+        }, duration);
+        
+        this.particles.push({ element: merit, spawnTime: Date.now() });
+    }
+
+    spawnMultiple(count = 3) {
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => this.spawn(), i * 150);
+        }
+    }
+
+    cleanup() {
+        this.particles.forEach(p => {
+            if (p.element && p.element.parentNode) {
+                p.element.remove();
+            }
+        });
+        this.particles = [];
+        if (this.frameId) {
+            cancelAnimationFrame(this.frameId);
+            this.frameId = null;
+        }
+    }
+}
         class CyberMuyu2077 {
             constructor() {
                 this.audio = new AudioEngine();
                 this.particles = new ParticleSystem(document.getElementById('particleCanvas'));
                 this.neurons = new NeuronNetwork(document.getElementById('neuronCanvas'));
                 this.visualizer = new Visualizer(document.getElementById('visualizerBar'));
+                this.autoChant = new AutoChantState();
+                this.goldMerit = new GoldMeritSystem(document.body);
 
                 this.state = {
                     hitCount: 0,
                     combo: 0,
                     lastHitTime: 0,
                     autoBeat: false,
+                    autoChantEnabled: false,
                     beatPattern: [1, 0, 1, 0, 1, 0, 1, 0],
                     currentBeat: 0,
                     bpm: 120,
@@ -1125,9 +1409,98 @@
                     autoBeatTimer: 0
                 };
 
+                this.setupAutoChantListeners();
                 this.loadState();
                 this.bindEvents();
                 this.animate();
+            }
+
+            setupAutoChantListeners() {
+                this.autoChant.on('stateChange', ({ from, to }) => {
+                    console.log(`AutoChant: ${from} -> ${to}`);
+                    if (to === 'idle') {
+                        this.updateAutoChantUI(false);
+                    } else if (to === 'chanting') {
+                        this.updateAutoChantUI(true);
+                    }
+                });
+            }
+
+            updateAutoChantUI(enabled) {
+                const switchEl = document.getElementById('autoChaoSwitch');
+                if (switchEl) {
+                    switchEl.classList.toggle('active', enabled);
+                }
+                const labelEl = document.getElementById('autoChaoLabelDisplay');
+                if (labelEl) {
+                    labelEl.style.display = enabled ? 'block' : 'none';
+                }
+                const muyuBody = document.getElementById('muyuBody');
+                if (muyuBody) {
+                    muyuBody.classList.toggle('auto-chao-active', enabled);
+                }
+                document.getElementById('bpmDisplay').textContent = 
+                    enabled ? this.state.bpm : (this.state.autoBeat ? this.state.bpm : '--');
+            }
+
+            toggleAutoChant() {
+                if (!this.state.autoChantEnabled) {
+                    this.state.autoChantEnabled = true;
+                    this.autoChant.transition(this.autoChant.states.CHANTING);
+                    this.autoChant.reset();
+                    this.startAutoChantLoop();
+                } else {
+                    this.state.autoChantEnabled = false;
+                    this.autoChant.transition(this.autoChant.states.IDLE);
+                    this.autoChant.reset();
+                    if (this.autoChant.chantTimerId) {
+                        clearTimeout(this.autoChant.chantTimerId);
+                        this.autoChant.chantTimerId = null;
+                    }
+                }
+                this.saveState();
+            }
+
+            startAutoChantLoop() {
+                if (!this.state.autoChantEnabled) return;
+
+                const interval = this.autoChant.calculateInterval();
+                this.autoChant.chantTimerId = setTimeout(() => {
+                    if (this.state.autoChantEnabled) {
+                        this.executeAutoChant();
+                        this.startAutoChantLoop();
+                    }
+                }, interval);
+            }
+
+            async executeAutoChant() {
+                if (this.autoChant.currentState !== 'chanting') return;
+
+                await this.audio.init();
+
+                const rect = document.getElementById('muyuWrapper').getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                const velocity = this.autoChant.calculateVelocity();
+
+                this.audio.playMuyu(velocity);
+                this.triggerVisualHit(centerX, centerY, velocity);
+
+                this.autoChant.chantCount++;
+                this.autoChant.incrementIntensity();
+                this.autoChant.lastChantTime = Date.now();
+
+                this.state.hitCount++;
+                this.state.totalClicks++;
+                this.state.combo = this.autoChant.chantCount;
+                document.getElementById('hitCount').textContent = this.state.hitCount.toLocaleString();
+                document.getElementById('combo').textContent = this.state.combo;
+                this.triggerCounterGlow();
+
+                this.goldMerit.spawnMultiple(Math.min(3, Math.floor(1 + this.autoChant.intensity / 2)));
+
+                if (this.state.hitCount % 10 === 0) this.saveState();
             }
 
             bindEvents() {
@@ -1172,6 +1545,7 @@
                 });
 
                 document.getElementById('autoBeatBtn').addEventListener('click', () => this.toggleAutoBeat());
+                document.getElementById('autoChaoSwitch').addEventListener('click', () => this.toggleAutoChant());
                 document.getElementById('clearPatternBtn').addEventListener('click', () => this.clearBeatPattern());
 
                 document.querySelectorAll('.beat-dot').forEach(dot => {
@@ -1382,6 +1756,11 @@
                 document.getElementById('particleCount').textContent = this.particles.getCount();
 
                 requestAnimationFrame(() => this.animate());
+            }
+
+            cleanup() {
+                this.autoChant.cleanup();
+                this.goldMerit.cleanup();
             }
         }
 
